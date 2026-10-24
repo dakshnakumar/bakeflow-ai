@@ -38,21 +38,29 @@ class Order(BaseModel):
     createdAt: datetime = Field(default_factory=datetime.now)
     updatedAt: datetime = Field(default_factory=datetime.now)
 
+class ChatHistoryItem(BaseModel):
+    role: str  # 'customer' or 'merchant'
+    content: str
+    imageUrl: Optional[str] = None
+
 class InquiryRequest(BaseModel):
-    customerName: Optional[str] = "Guest Baker"
+    customerName: Optional[str] = "Jessica Taylor"
     customerPhone: Optional[str] = "+1 (408) 555-0199"
     message: str
     imageUrl: Optional[str] = None
+    history: Optional[list[ChatHistoryItem]] = []
 
 class QuoteResponse(BaseModel):
-    orderId: str
+    orderId: Optional[str] = None
     customerName: str
-    cakeSpec: CakeSpecification
-    totalAmount: float
-    status: OrderStatus
-    paypalApprovalUrl: Optional[str]
+    cakeSpec: Optional[CakeSpecification] = None
+    totalAmount: Optional[float] = None
+    status: Optional[OrderStatus] = None
+    paypalApprovalUrl: Optional[str] = None
     agentMessage: str
+    readyForPayment: bool = False
 
 class OrderStatusUpdateRequest(BaseModel):
     newStatus: OrderStatus
     note: Optional[str] = None
+

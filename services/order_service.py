@@ -28,9 +28,44 @@ class OrderService:
         self.ai_service = ai_service
         self.paypal_service = paypal_service
         self.orders: Dict[str, Order] = {}
+        self.storage_file = ROOT_DIR / "orders_cache.json"
         self.order_counter = 1001
         self.subscribers: List[asyncio.Queue] = []
-        self._seed_initial_orders()
+        self._load_orders()
+
+    def _load_orders(self):
+        if self.storage_file.exists():
+            try:
+                with open(self.storage_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for item in data:
+                        order = Order.model_validate(item)
+                        self.orders[order.id] = order
+            except Exception as e:
+                pass
+
+        if not self.orders:
+            self._seed_initial_orders()
+            self._save_orders()
+
+        # Recalculate order counter based on highest existing BK-xxx
+        max_num = 1000
+        for oid in self.orders.keys():
+            if oid.startswith("BK-"):
+                try:
+                    num = int(oid.replace("BK-", ""))
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+        self.order_counter = max_num + 1
+
+    def _save_orders(self):
+        try:
+            with open(self.storage_file, "w", encoding="utf-8") as f:
+                json.dump([o.model_dump(mode="json") for o in self.orders.values()], f, indent=2)
+        except Exception:
+            pass
 
     def _seed_initial_orders(self):
         spec1 = CakeSpecification(
@@ -84,17 +119,39 @@ class OrderService:
         self.orders[o2.id] = o2
 
     async def process_inquiry(self, req: InquiryRequest) -> QuoteResponse:
+        customer_name = req.customerName or "Jessica Taylor"
+        customer_phone = req.customerPhone or "+1-555-0199"
+
+        # 1. Invoke AI Router with Merchant Persona (Anna) & Payment Readiness check
+        spec, agent_msg, ready_for_payment = await self.ai_service.parse_inquiry_with_ai(
+            text=req.message,
+            image_url=req.imageUrl,
+            history=req.history,
+            customer_name=customer_name
+        )
+
+        # If customer is NOT ready to pay yet, keep as warm merchant consultation:
+        # Do not create PayPal order or push to Kitchen Kanban board yet.
+        if not ready_for_payment:
+            return QuoteResponse(
+                orderId=None,
+                customerName=customer_name,
+                cakeSpec=spec,
+                totalAmount=spec.totalPrice if spec else None,
+                status=None,
+                paypalApprovalUrl=None,
+                agentMessage=agent_msg,
+                readyForPayment=False
+            )
+
+        # 2. Customer IS READY TO PAY: Create formal order and PayPal checkout
         order_id = f"BK-{self.order_counter}"
         self.order_counter += 1
 
-        # 1. Invoke Claude 3.5 Sonnet Vision & Reasoning Agent
-        spec, agent_msg = await self.ai_service.parse_inquiry_with_ai(req.message, req.imageUrl)
-        
-        # 2. Build Order
         order = Order(
             id=order_id,
-            customerName=req.customerName or "Guest Baker",
-            customerPhone=req.customerPhone or "+1-555-0000",
+            customerName=customer_name,
+            customerPhone=customer_phone,
             cakeSpec=spec,
             totalAmount=spec.totalPrice,
             status=OrderStatus.PAYMENT_PENDING
@@ -106,6 +163,7 @@ class OrderService:
         order.paypalApprovalUrl = pp_res["approvalUrl"]
 
         self.orders[order_id] = order
+        self._save_orders()
 
         # 4. Broadcast to Kitchen Kanban SSE Stream
         await self.broadcast_event("ORDER_QUOTED", order)
@@ -117,7 +175,8 @@ class OrderService:
             totalAmount=order.totalAmount,
             status=order.status,
             paypalApprovalUrl=order.paypalApprovalUrl,
-            agentMessage=agent_msg
+            agentMessage=agent_msg,
+            readyForPayment=True
         )
 
     async def confirm_payment(self, order_id: str, capture_id: str) -> Optional[Order]:
@@ -126,6 +185,7 @@ class OrderService:
             order.paypalCaptureId = capture_id
             order.status = OrderStatus.CONFIRMED
             order.updatedAt = datetime.now()
+            self._save_orders()
             await self.broadcast_event("ORDER_PAID", order)
             return order
         return None
@@ -135,6 +195,7 @@ class OrderService:
         if order:
             order.status = new_status
             order.updatedAt = datetime.now()
+            self._save_orders()
             await self.broadcast_event("STATUS_UPDATED", order)
             return order
         return None

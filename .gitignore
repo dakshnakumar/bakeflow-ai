@@ -35,3 +35,7 @@ __pycache__/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Bearer token
+getting_paypal_auth.txt
+orders_cache.json

@@ -108,7 +108,7 @@ async def handle_paypal_webhook(request: Request):
         return {"status": "WEBHOOK_ERROR", "error": str(e)}
 
 @app.get("/api/kitchen/stream")
-async def stream_kitchen_events():
+async def stream_kitchen_events(request: Request):
     queue = await order_service.subscribe()
 
     async def event_generator():
@@ -118,12 +118,16 @@ async def stream_kitchen_events():
         }
         try:
             while True:
+                if await request.is_disconnected():
+                    break
                 payload = await queue.get()
                 yield {
                     "event": payload["event"],
                     "data": json.dumps(payload["data"])
                 }
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, GeneratorExit):
+            pass
+        finally:
             order_service.unsubscribe(queue)
 
     return EventSourceResponse(event_generator())

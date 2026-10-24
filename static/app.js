@@ -21,6 +21,7 @@ const PRESET_INQUIRIES = {
 let currentSelectedImage = null;
 let currentModalOrderId = null;
 let currentModalAmount = null;
+let chatHistory = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     initSseKitchenStream();
@@ -28,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 1. CHAT & AI INQUIRY FLOW
+// 1. CHAT & MERCHANT DIALOGUE FLOW
 // ==========================================
 function loadPresetInquiry() {
     const select = document.getElementById('preset-select');
@@ -65,29 +66,47 @@ function handleChatKey(event) {
     }
 }
 
-async function sendInquiry() {
+function sendQuickReply(text) {
+    sendInquiry(text);
+}
+
+async function sendInquiry(overrideText = null) {
     const input = document.getElementById('chat-input');
-    const text = input.value.trim();
+    const text = overrideText !== null ? overrideText.trim() : input.value.trim();
     if (!text && !currentSelectedImage) return;
 
+    const imgToAttach = currentSelectedImage;
+
     // 1. Render customer outgoing bubble
-    renderOutgoingMessage(text, currentSelectedImage);
-    input.value = '';
+    renderOutgoingMessage(text, imgToAttach);
+    if (overrideText === null) {
+        input.value = '';
+    }
+
+    // Record in local conversation history
+    chatHistory.push({
+        role: "customer",
+        content: text,
+        imageUrl: imgToAttach
+    });
 
     const payload = {
         customerName: "Jessica Taylor",
         customerPhone: "+1 (408) 555-0199",
         message: text,
-        imageUrl: currentSelectedImage
+        imageUrl: imgToAttach,
+        history: chatHistory
     };
 
     clearSelectedImage();
+
+    // Remove any previous suggestion chips so user doesn't double-click old ones
+    document.querySelectorAll('.chat-suggestions').forEach(el => el.remove());
 
     // 2. Render typing indicator
     const typingId = renderTypingIndicator();
 
     try {
-        // 3. Call Spring Boot Backend
         const response = await fetch('/api/orders/inquiry', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -98,13 +117,18 @@ async function sendInquiry() {
 
         if (response.ok) {
             const quote = await response.json();
-            renderIncomingQuote(quote);
+            // Record merchant response in conversation history
+            chatHistory.push({
+                role: "merchant",
+                content: quote.agentMessage
+            });
+            renderMerchantResponse(quote);
         } else {
-            renderIncomingMessage("Sorry, I had trouble parsing that. Please try again!");
+            renderIncomingMessage("Sorry, I had a momentary kitchen hiccup. Could you say that again?");
         }
     } catch (err) {
         removeTypingIndicator(typingId);
-        renderIncomingMessage("Unable to connect to server. Please check your backend.");
+        renderIncomingMessage("Unable to connect to the bakery server right now. Please check your backend.");
         console.error(err);
     }
 }
@@ -126,35 +150,56 @@ function renderOutgoingMessage(text, imageUrl) {
     viewport.scrollTop = viewport.scrollHeight;
 }
 
-function renderIncomingQuote(quote) {
+function renderMerchantResponse(quote) {
     const viewport = document.getElementById('chat-viewport');
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble incoming';
 
     const spec = quote.cakeSpec;
 
-    bubble.innerHTML = `
-        <div class="bubble-sender">BakeFlow Assistant 🧁</div>
-        <div class="bubble-text">${escapeHtml(quote.agentMessage)}</div>
-        <div class="quote-card">
-            <div class="quote-header">
-                <span class="quote-badge">ORDER #${quote.orderId}</span>
-                <span class="quote-total">$${spec.totalPrice.toFixed(2)}</span>
+    // IF customer is ready for payment: show Anna's message + Quote summary + PayPal button
+    if (quote.readyForPayment && quote.orderId) {
+        bubble.innerHTML = `
+            <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
+            <div class="bubble-text">${escapeHtml(quote.agentMessage)}</div>
+            <div class="quote-card">
+                <div class="quote-header">
+                    <span class="quote-badge">RESERVED ORDER #${quote.orderId}</span>
+                    <span class="quote-total">$${spec.totalPrice.toFixed(2)}</span>
+                </div>
+                <div class="quote-details">
+                    <div>Flavor: <strong>${escapeHtml(spec.flavor)}</strong></div>
+                    <div>Size: <strong>${spec.servings} guests (${spec.tiers} tier)</strong></div>
+                    <div>Dietary: <strong>${escapeHtml(spec.dietaryPreferences)}</strong></div>
+                    <div>Pickup Date: <strong>${spec.pickupDate}</strong></div>
+                </div>
+                <button class="paypal-action-button" onclick="openPayPalCheckout('${quote.orderId}', ${spec.totalPrice}, '${escapeHtml(spec.theme)}')">
+                    <span>Pay with</span>
+                    <strong>PayPal</strong>
+                    <span>• $${spec.totalPrice.toFixed(2)}</span>
+                </button>
             </div>
-            <div class="quote-details">
-                <div>Flavor: <strong>${spec.flavor}</strong></div>
-                <div>Size: <strong>${spec.servings} guests (${spec.tiers} tier)</strong></div>
-                <div>Dietary: <strong>${spec.dietaryPreferences}</strong></div>
-                <div>Pickup: <strong>${spec.pickupDate}</strong></div>
+            <span class="bubble-time">${getCurrentTime()}</span>
+        `;
+    } else {
+        // IF in consultation phase: ONLY show Anna's warm conversational message + Interactive suggestion chips
+        bubble.innerHTML = `
+            <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
+            <div class="bubble-text">${escapeHtml(quote.agentMessage)}</div>
+            <div class="chat-suggestions">
+                <button type="button" class="suggestion-chip pay-chip" onclick="sendQuickReply('Sounds wonderful, Anna! Yes, please send me the PayPal link to reserve my cake.')">
+                    💳 Yes, send PayPal link!
+                </button>
+                <button type="button" class="suggestion-chip" onclick="sendQuickReply('Can we explore different flavor combinations?')">
+                    🍓 Other flavor options
+                </button>
+                <button type="button" class="suggestion-chip" onclick="sendQuickReply('Can we adjust the guest count to 25 people?')">
+                    🎂 Adjust guest count
+                </button>
             </div>
-            <button class="paypal-action-button" onclick="openPayPalCheckout('${quote.orderId}', ${spec.totalPrice}, '${escapeHtml(spec.theme)}')">
-                <span>Pay with</span>
-                <strong>PayPal</strong>
-                <span>• $${spec.totalPrice.toFixed(2)}</span>
-            </button>
-        </div>
-        <span class="bubble-time">${getCurrentTime()}</span>
-    `;
+            <span class="bubble-time">${getCurrentTime()}</span>
+        `;
+    }
 
     viewport.appendChild(bubble);
     viewport.scrollTop = viewport.scrollHeight;
@@ -165,7 +210,7 @@ function renderIncomingMessage(text) {
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble incoming';
     bubble.innerHTML = `
-        <div class="bubble-sender">BakeFlow Assistant 🧁</div>
+        <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
         <div class="bubble-text">${escapeHtml(text)}</div>
         <span class="bubble-time">${getCurrentTime()}</span>
     `;
@@ -180,8 +225,11 @@ function renderTypingIndicator() {
     bubble.id = id;
     bubble.className = 'chat-bubble incoming';
     bubble.innerHTML = `
-        <div class="bubble-sender">BakeFlow Assistant 🧁</div>
-        <div class="bubble-text" style="color: #94a3b8; font-style: italic;">Analyzing cake specifications & calculating PayPal quote...</div>
+        <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
+        <div class="bubble-text" style="color: #f472b6; font-style: italic; display: flex; align-items: center; gap: 6px;">
+            <span>Anna is typing...</span>
+            <span style="font-size: 14px;">💬</span>
+        </div>
     `;
     viewport.appendChild(bubble);
     viewport.scrollTop = viewport.scrollHeight;
@@ -372,6 +420,9 @@ async function updateOrderStatus(orderId, newStatus) {
         if (res.ok) {
             const updated = await res.json();
             upsertTicket(updated, true);
+        } else if (res.status === 404) {
+            console.warn(`Order #${orderId} was not found on the backend. Refreshing orders...`);
+            loadAllOrders();
         }
     } catch (e) {
         console.error("Failed to update status:", e);

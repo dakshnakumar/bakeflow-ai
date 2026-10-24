@@ -43,35 +43,40 @@ class BakeryAiService:
             else None
         )
 
-    async def parse_inquiry_with_ai(self, text: str, image_url: Optional[str] = None) -> Tuple[CakeSpecification, str]:
+    async def parse_inquiry_with_ai(
+        self,
+        text: str,
+        image_url: Optional[str] = None,
+        history: Optional[list] = None,
+        customer_name: Optional[str] = "Jessica"
+    ) -> Tuple[CakeSpecification, str, bool]:
         """
-        Unified AI Router supporting both Anthropic Claude 3.5 Sonnet and Google Gemini 1.5/2.5.
-        Auto-routes based on AI_PROVIDER or available API keys.
+        Unified AI Router supporting Google Gemini and Anthropic Claude 3.5 Sonnet.
+        Functions as Anna (Artisan Home Baker Merchant) - friendly, culinary-minded dialogue.
+        Crucially: Only marks ready_for_payment=True when customer is explicitly ready to pay.
         """
         active_engine = self._determine_engine()
         logger.info(f"AI Router selected engine: {active_engine.upper()}")
 
         if active_engine == "gemini":
-            spec, msg = await self._call_gemini(text, image_url)
+            spec, msg, ready = await self._call_gemini(text, image_url, history, customer_name)
             if spec:
-                return spec, msg
+                return spec, msg, ready
             logger.warning("Gemini call failed, checking Claude fallback...")
             active_engine = "claude"
 
         if active_engine == "claude":
-            spec, msg = await self._call_claude(text, image_url)
+            spec, msg, ready = await self._call_claude(text, image_url, history, customer_name)
             if spec:
-                return spec, msg
+                return spec, msg, ready
             logger.warning("Claude call failed, falling back to heuristic engine...")
 
-        # Ultimate resilient fallback
-        logger.info("Using Rule-Based Heuristic Parser")
-        spec = self._heuristic_parse(text, image_url)
-        msg = self.generate_agent_quote_message(spec)
-        return spec, msg
+        # Ultimate resilient merchant fallback
+        logger.info("Using Rule-Based Merchant Persona Engine")
+        return self._heuristic_merchant_response(text, image_url, history, customer_name)
 
     # Compatibility alias
-    async def parse_inquiry_with_claude(self, text: str, image_url: Optional[str] = None) -> Tuple[CakeSpecification, str]:
+    async def parse_inquiry_with_claude(self, text: str, image_url: Optional[str] = None) -> Tuple[CakeSpecification, str, bool]:
         return await self.parse_inquiry_with_ai(text, image_url)
 
     def _determine_engine(self) -> str:
@@ -92,15 +97,22 @@ class BakeryAiService:
         return bool(k and not k.startswith("mock_") and not k.startswith("your_"))
 
     # =========================================================================
-    # 1. GOOGLE GEMINI (FLASH-LITE-LATEST)
+    # 1. GOOGLE GEMINI (FLASH-LITE-LATEST) - MERCHANT PERSONA
     # =========================================================================
-    async def _call_gemini(self, text: str, image_url: Optional[str]) -> Tuple[Optional[CakeSpecification], Optional[str]]:
+    async def _call_gemini(
+        self,
+        text: str,
+        image_url: Optional[str],
+        history: Optional[list],
+        customer_name: Optional[str]
+    ) -> Tuple[Optional[CakeSpecification], Optional[str], Optional[bool]]:
         if not self._is_valid_key(self.gemini_api_key):
-            return None, None
+            return None, None, None
 
         try:
-            logger.info("Invoking Google Gemini AI Agent...")
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent?key={self.gemini_api_key}"
+            logger.info("Invoking Google Gemini Merchant AI Agent...")
+            gemini_model = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{gemini_model}:generateContent?key={self.gemini_api_key}"
 
             parts = []
 
@@ -115,12 +127,12 @@ class BakeryAiService:
                         }
                     })
 
-            parts.append({"text": self._build_prompt(text)})
+            parts.append({"text": self._build_prompt(text, history, customer_name)})
 
             payload = {
                 "contents": [{"parts": parts}],
                 "systemInstruction": {
-                    "parts": [{"text": f"You are the autonomous AI Assistant for {self.business_name}, a boutique artisan home bakery."}]
+                    "parts": [{"text": self._build_system_instruction()}]
                 },
                 "generationConfig": {
                     "response_mime_type": "application/json",
@@ -137,9 +149,10 @@ class BakeryAiService:
                             "basePrice": {"type": "NUMBER"},
                             "addOnsPrice": {"type": "NUMBER"},
                             "totalPrice": {"type": "NUMBER"},
-                            "agentMessage": {"type": "STRING"}
+                            "readyForPayment": {"type": "BOOLEAN", "description": "True ONLY if customer explicitly confirms they are ready to pay or asks to send the PayPal/payment link. False during initial questions, design discussions, and quoting."},
+                            "agentMessage": {"type": "STRING", "description": "Warm personal response from Anna the baker. Speak naturally as a human merchant texting over WhatsApp/Instagram DM. No robotic bullet points. If readyForPayment is false, discuss design/quote and ask if they want the PayPal link. If true, express excitement and confirm the PayPal link is provided."}
                         },
-                        "required": ["flavor", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "agentMessage"]
+                        "required": ["flavor", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "readyForPayment", "agentMessage"]
                     }
                 }
             }
@@ -152,24 +165,30 @@ class BakeryAiService:
                     if candidates:
                         raw_json = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         parsed = json.loads(raw_json)
-                        logger.info(f"Gemini successfully extracted quote: {parsed.get('theme')} - ${parsed.get('totalPrice')}")
+                        logger.info(f"Gemini successfully extracted response: readyForPayment={parsed.get('readyForPayment')} - ${parsed.get('totalPrice')}")
                         return self._map_dict_to_spec(parsed, image_url)
                 else:
                     logger.error(f"Gemini API returned status {res.status_code}: {res.text}")
 
         except Exception as e:
             logger.error(f"Gemini API exception: {e}")
-        return None, None
+        return None, None, None
 
     # =========================================================================
-    # 2. ANTHROPIC CLAUDE 3.5 SONNET
+    # 2. ANTHROPIC CLAUDE 3.5 SONNET - MERCHANT PERSONA
     # =========================================================================
-    async def _call_claude(self, text: str, image_url: Optional[str]) -> Tuple[Optional[CakeSpecification], Optional[str]]:
+    async def _call_claude(
+        self,
+        text: str,
+        image_url: Optional[str],
+        history: Optional[list],
+        customer_name: Optional[str]
+    ) -> Tuple[Optional[CakeSpecification], Optional[str], Optional[bool]]:
         if not self.claude_client:
-            return None, None
+            return None, None, None
 
         try:
-            logger.info("Invoking Claude 3.5 Sonnet Vision & Reasoning Agent...")
+            logger.info("Invoking Claude 3.5 Sonnet Merchant Reasoning Agent...")
             content_blocks = []
 
             if image_url and image_url.startswith("http"):
@@ -184,48 +203,84 @@ class BakeryAiService:
                         }
                     })
 
-            content_blocks.append({"type": "text", "text": self._build_prompt(text)})
+            content_blocks.append({"type": "text", "text": self._build_prompt(text, history, customer_name)})
 
             tools = [{
-                "name": "create_cake_quote",
-                "description": "Extracts structured cake specifications and dynamic pricing from customer inquiry.",
+                "name": "merchant_cake_response",
+                "description": "Extracts cake design specifications, calculates price, determines payment readiness, and writes Anna's human merchant response.",
                 "input_schema": self._get_tool_json_schema()
             }]
 
             response = await self.claude_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=1000,
-                temperature=0.2,
-                system=f"You are the autonomous AI Assistant for {self.business_name}, a boutique artisan home bakery.",
+                temperature=0.3,
+                system=self._build_system_instruction(),
                 messages=[{"role": "user", "content": content_blocks}],
                 tools=tools,
-                tool_choice={"type": "tool", "name": "create_cake_quote"}
+                tool_choice={"type": "tool", "name": "merchant_cake_response"}
             )
 
             for block in response.content:
-                if block.type == "tool_use" and block.name == "create_cake_quote":
+                if block.type == "tool_use" and block.name == "merchant_cake_response":
                     return self._map_dict_to_spec(block.input, image_url)
 
         except Exception as e:
             logger.error(f"Claude API exception: {e}")
-        return None, None
+        return None, None, None
 
     # =========================================================================
-    # 3. COMMON HELPERS & HEURISTIC FALLBACK
+    # 3. COMMON HELPERS & MERCHANT PERSONA INSTRUCTIONS
     # =========================================================================
-    def _build_prompt(self, text: str) -> str:
+    def _build_system_instruction(self) -> str:
         return (
-            f"Customer Inquiry: \"{text}\"\n"
+            f"You are Anna, the passionate owner, master decorator, and head artisan baker at {self.business_name}, "
+            "a boutique home bakery in San Jose, CA.\n"
+            "You are chatting directly with clients over WhatsApp / Instagram DM.\n\n"
+            "MERCHANT PERSONA & VOICE:\n"
+            "- Speak naturally as a warm, enthusiastic human baker in the 1st person ('I', 'my kitchen', 'I'd love to bake this for you!').\n"
+            "- DO NOT sound like an AI chatbot, corporate helpdesk, or customer support robot.\n"
+            "- DO NOT output bulleted checklists or receipt outlines (e.g. avoid '• Flavor: ... • Size: ...').\n"
+            "- Talk like a real baker texting a client: compliment their cake theme, share your excitement, recommend flavors, and discuss portions.\n"
+            "- Use friendly emojis naturally (💕, 👩‍🍳, 🎂, ✨, 🧁).\n\n"
+            "PAYPAL PAYMENT READINESS LOGIC (STRICT):\n"
+            "1. INQUIRY / CONSULTATION PHASE (readyForPayment = false):\n"
+            "   - If the customer is inquiring, asking questions, requesting a quote, exploring flavors, or asking about availability:\n"
+            "   - Answer warmly, give the total price estimate, and ask: 'Would you like me to reserve your oven slot and send over the PayPal link?'\n"
+            "   - readyForPayment MUST be false.\n"
+            "   - Do NOT say 'click the link below' because no link is presented yet.\n"
+            "2. PAYMENT PHASE (readyForPayment = true):\n"
+            "   - ONLY when the customer explicitly confirms they want to proceed, says yes to the payment link, says 'let's do it', 'ready to pay', 'send me the link', or asks how to pay:\n"
+            "   - Set readyForPayment = true.\n"
+            "   - Confirm that their pickup date is reserved and let them know the secure PayPal payment link is attached below to finalize the deposit and lock it in."
+        )
+
+    def _build_prompt(self, text: str, history: Optional[list] = None, customer_name: Optional[str] = "Customer") -> str:
+        hist_text = ""
+        if history:
+            hist_text = "Prior Conversation History:\n"
+            for item in history:
+                role = getattr(item, 'role', '') if hasattr(item, 'role') else (item.get('role', '') if isinstance(item, dict) else '')
+                role_label = "Customer" if role == 'customer' else "Anna (Baker)"
+                content = getattr(item, 'content', '') if hasattr(item, 'content') else (item.get('content', '') if isinstance(item, dict) else str(item))
+                hist_text += f"{role_label}: {content}\n"
+            hist_text += "\n"
+
+        return (
+            f"{hist_text}"
+            f"Customer Name: {customer_name}\n"
+            f"Current Message: \"{text}\"\n"
             f"Today's Date: {date.today().isoformat()}\n"
-            f"Baker Business: {self.business_name}\n"
+            f"Bakery: {self.business_name}\n"
             f"Pricing Rules:\n"
-            f"- Base price: ${self.base_price_per_serving:.2f} per guest serving\n"
-            f"- Additional tier surcharge: ${self.tier_multiplier:.2f} per tier above 1\n"
-            f"- Dietary accommodation (Eggless/Gluten-Free/Vegan): $15.00\n"
-            f"- Custom fondant/sculpture detailing: $20.00\n"
-            "Analyze the cake photo (if provided) and customer text to determine: flavor, servings, "
-            "tiers, theme, dietary needs, estimated pickup date (YYYY-MM-DD), and pricing breakdown. "
-            "Generate a warm, friendly agentMessage acknowledging specific cake design details."
+            f"- Base: ${self.base_price_per_serving:.2f}/serving\n"
+            f"- Extra tiers: ${self.tier_multiplier:.2f} per tier above 1\n"
+            f"- Dietary (Eggless/Gluten-Free/Vegan): $15.00\n"
+            f"- Custom artistic fondant/sculpture: $20.00\n\n"
+            "Instructions:\n"
+            "1. Extract or maintain cake specifications (flavor, servings, tiers, theme, dietary, pickup date, price).\n"
+            "2. Decide if customer is ready to pay (readyForPayment = true ONLY if they explicitly confirmed booking or asked for the payment link).\n"
+            "3. Write Anna's warm, personal message (agentMessage) according to the merchant persona."
         )
 
     def _get_tool_json_schema(self) -> Dict[str, Any]:
@@ -242,9 +297,10 @@ class BakeryAiService:
                 "basePrice": {"type": "number"},
                 "addOnsPrice": {"type": "number"},
                 "totalPrice": {"type": "number"},
+                "readyForPayment": {"type": "boolean", "description": "True ONLY if customer confirmed they are ready to pay or requested payment link."},
                 "agentMessage": {"type": "string"}
             },
-            "required": ["flavor", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "agentMessage"]
+            "required": ["flavor", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "readyForPayment", "agentMessage"]
         }
 
     async def _fetch_image_base64(self, image_url: str) -> Tuple[Optional[str], str]:
@@ -261,7 +317,7 @@ class BakeryAiService:
             logger.warning(f"Failed to fetch image bytes: {e}")
         return None, "image/jpeg"
 
-    def _map_dict_to_spec(self, d: Dict[str, Any], image_url: Optional[str]) -> Tuple[CakeSpecification, str]:
+    def _map_dict_to_spec(self, d: Dict[str, Any], image_url: Optional[str]) -> Tuple[CakeSpecification, str, bool]:
         raw_date = str(d.get("pickupDate", ""))
         p_date = None
         try:
@@ -273,6 +329,7 @@ class BakeryAiService:
         base_p = float(d.get("basePrice", 67.50))
         addon_p = float(d.get("addOnsPrice", 0.0))
         total_p = float(d.get("totalPrice", base_p + addon_p))
+        ready_for_payment = bool(d.get("readyForPayment", False))
 
         spec = CakeSpecification(
             flavor=d.get("flavor", "Signature Vanilla Bean"),
@@ -287,8 +344,14 @@ class BakeryAiService:
             addOnsPrice=addon_p,
             totalPrice=total_p
         )
-        agent_msg = d.get("agentMessage", self.generate_agent_quote_message(spec))
-        return spec, agent_msg
+        agent_msg = d.get("agentMessage")
+        if not agent_msg:
+            agent_msg = (
+                self.generate_merchant_payment_message(spec) 
+                if ready_for_payment 
+                else self.generate_merchant_consultation_message(spec)
+            )
+        return spec, agent_msg, ready_for_payment
 
     def _heuristic_parse(self, text: str, image_url: str = None) -> CakeSpecification:
         lower = text.lower() if text else ""
@@ -326,17 +389,85 @@ class BakeryAiService:
             totalPrice=total_price
         )
 
-    def generate_agent_quote_message(self, spec: CakeSpecification) -> str:
+    def _heuristic_merchant_response(
+        self,
+        text: str,
+        image_url: Optional[str] = None,
+        history: Optional[list] = None,
+        customer_name: Optional[str] = "Jessica"
+    ) -> Tuple[CakeSpecification, str, bool]:
+        # Gather cumulative text from history if present so context is preserved across turns
+        combined_text = text
+        if history:
+            prev_texts = []
+            for item in history:
+                role = getattr(item, 'role', '') if hasattr(item, 'role') else (item.get('role', '') if isinstance(item, dict) else '')
+                if role == 'customer':
+                    c = getattr(item, 'content', '') if hasattr(item, 'content') else (item.get('content', '') if isinstance(item, dict) else '')
+                    if c:
+                        prev_texts.append(c)
+            if prev_texts:
+                combined_text = " ".join(prev_texts) + " " + text
+
+        spec = self._heuristic_parse(combined_text, image_url)
+        ready_for_payment = self._is_ready_for_payment(text, history)
+
+        if ready_for_payment:
+            msg = self.generate_merchant_payment_message(spec, customer_name)
+        else:
+            msg = self.generate_merchant_consultation_message(spec, customer_name)
+
+        return spec, msg, ready_for_payment
+
+    def _is_ready_for_payment(self, text: str, history: Optional[list] = None) -> bool:
+        lower = text.lower().strip()
+        
+        # Explicit positive readiness triggers
+        positive_cues = [
+            "send link", "send the link", "send paypal", "paypal link",
+            "ready to pay", "ready to book", "i'm ready", "im ready",
+            "let's do it", "lets do it", "sounds great, send", "sounds good, send",
+            "yes please", "yes send", "please send", "book it", "book this",
+            "lock it in", "confirm order", "go ahead", "take my money", "pay now",
+            "how do i pay", "where do i pay", "send invoice", "ready for payment"
+        ]
+        if any(cue in lower for cue in positive_cues):
+            return True
+
+        # Short affirmatives when history already contains consultation
+        short_affirmatives = ["yes", "yeah", "yep", "sure", "definitely", "perfect", "sounds good", "sounds great", "ok", "okay"]
+        if lower in short_affirmatives or lower.startswith("yes"):
+            if history and len(history) > 0:
+                return True
+
+        return False
+
+    def generate_merchant_consultation_message(self, spec: CakeSpecification, customer_name: Optional[str] = "Jessica") -> str:
+        first_name = customer_name.split()[0] if customer_name else "there"
+        dietary_str = f" with {spec.dietaryPreferences.lower()} recipe" if spec.dietaryPreferences.lower() != "standard" else ""
+        date_str = spec.pickupDate.strftime("%A, %b %d")
+
         return (
-            f"🧁 Hello! This is your Baker Assistant for {self.business_name}.\n\n"
-            f"I've prepared a quote for your custom cake:\n"
-            f"• Design & Theme: {spec.theme}\n"
-            f"• Flavor: {spec.flavor} ({spec.dietaryPreferences})\n"
-            f"• Size: {spec.servings} servings across {spec.tiers} tier(s)\n"
-            f"• Estimated Pickup Date: {spec.pickupDate.isoformat()}\n\n"
-            f"💰 Total: ${spec.totalPrice:.2f} (Base: ${spec.basePrice:.2f} + Custom Detailing: ${spec.addOnsPrice:.2f})\n\n"
-            f"To lock in your oven slot with PayPal, click the payment link below:"
+            f"Hi {first_name}! Anna here 💕\n\n"
+            f"I would absolutely love to bake this {spec.theme.lower()} cake for your celebration! "
+            f"For {spec.servings} guests across {spec.tiers} tier(s), our {spec.flavor.lower()}{dietary_str} "
+            f"pairs delightfully with handcrafted fresh buttercream.\n\n"
+            f"Your estimated total is ${spec.totalPrice:.2f} (including custom artistic detailing) for pickup on {date_str}.\n\n"
+            f"Would you like me to reserve your oven slot and send over the PayPal link?"
         )
+
+    def generate_merchant_payment_message(self, spec: CakeSpecification, customer_name: Optional[str] = "Jessica") -> str:
+        first_name = customer_name.split()[0] if customer_name else "there"
+        date_str = spec.pickupDate.strftime("%A, %b %d")
+
+        return (
+            f"Wonderful, {first_name}! 🎉 I have your oven slot reserved for {date_str}!\n\n"
+            f"I've attached your official PayPal link below to complete the deposit and confirm your order. "
+            f"Once received, I'll start prepping your {spec.flavor} cake in the kitchen! 👩‍🍳✨"
+        )
+
+    def generate_agent_quote_message(self, spec: CakeSpecification) -> str:
+        return self.generate_merchant_consultation_message(spec)
 
     def _extract_servings(self, text: str) -> int:
         match = re.search(r'(\d+)\s*(servings?|people|guests|pax|slices?)', text)
