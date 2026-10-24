@@ -122,13 +122,17 @@ class OrderService:
         customer_name = req.customerName or "Jessica Taylor"
         customer_phone = req.customerPhone or "+1-555-0199"
 
-        # 1. Invoke AI Router with Merchant Persona (Anna) & Payment Readiness check
-        spec, agent_msg, ready_for_payment = await self.ai_service.parse_inquiry_with_ai(
+        # 1. Invoke AI Router with Merchant Persona (Anna), Payment Readiness & Catalogue check
+        spec, agent_msg, ready_for_payment, show_catalogue = await self.ai_service.parse_inquiry_with_ai(
             text=req.message,
             image_url=req.imageUrl,
             history=req.history,
             customer_name=customer_name
         )
+
+        catalogue_items = None
+        if show_catalogue:
+            catalogue_items = await self.paypal_service.get_catalog_products()
 
         # If customer is NOT ready to pay yet, keep as warm merchant consultation:
         # Do not create PayPal order or push to Kitchen Kanban board yet.
@@ -141,7 +145,9 @@ class OrderService:
                 status=None,
                 paypalApprovalUrl=None,
                 agentMessage=agent_msg,
-                readyForPayment=False
+                readyForPayment=False,
+                showCatalogue=show_catalogue,
+                catalogueItems=catalogue_items
             )
 
         # 2. Customer IS READY TO PAY: Create formal order and PayPal checkout
@@ -179,10 +185,23 @@ class OrderService:
             readyForPayment=True
         )
 
-    async def confirm_payment(self, order_id: str, capture_id: str) -> Optional[Order]:
+    async def confirm_payment(
+        self,
+        order_id: str,
+        capture_id: str,
+        invoice_id: Optional[str] = None,
+        invoice_url: Optional[str] = None,
+        dashboard_url: Optional[str] = None
+    ) -> Optional[Order]:
         order = self.orders.get(order_id)
         if order:
             order.paypalCaptureId = capture_id
+            if invoice_id:
+                order.paypalInvoiceId = invoice_id
+            if invoice_url:
+                order.paypalInvoiceUrl = invoice_url
+            if dashboard_url:
+                order.paypalDashboardUrl = dashboard_url
             order.status = OrderStatus.CONFIRMED
             order.updatedAt = datetime.now()
             self._save_orders()

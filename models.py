@@ -35,6 +35,9 @@ class Order(BaseModel):
     paypalOrderId: Optional[str] = None
     paypalCaptureId: Optional[str] = None
     paypalApprovalUrl: Optional[str] = None
+    paypalInvoiceId: Optional[str] = None
+    paypalInvoiceUrl: Optional[str] = None
+    paypalDashboardUrl: Optional[str] = None
     createdAt: datetime = Field(default_factory=datetime.now)
     updatedAt: datetime = Field(default_factory=datetime.now)
 
@@ -56,9 +59,15 @@ class QuoteResponse(BaseModel):
     cakeSpec: Optional[CakeSpecification] = None
     totalAmount: Optional[float] = None
     status: Optional[OrderStatus] = None
+    paypalOrderId: Optional[str] = None
     paypalApprovalUrl: Optional[str] = None
+    paypalInvoiceId: Optional[str] = None
+    paypalInvoiceUrl: Optional[str] = None
+    paypalDashboardUrl: Optional[str] = None
     agentMessage: str
     readyForPayment: bool = False
+    showCatalogue: bool = False
+    catalogueItems: Optional[list[dict]] = None
 
 class OrderStatusUpdateRequest(BaseModel):
     newStatus: OrderStatus

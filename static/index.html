@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- PayPal JavaScript SDK for Sandbox Checkout with US buyer emulation to bypass geo-restrictions -->
+    <script src="https://www.paypal.com/sdk/js?client-id=AbTiEIdzSFuFa52u9YgXFnn2XHJZH2z5_UggAUX18lAHMYqUm8Ny3EUS8pgag20eRBxdl-N4v7sq8hz-&currency=USD&buyer-country=US&components=buttons&enable-funding=card"></script>
 </head>
 <body>
     <!-- Top Navigation Header -->
@@ -20,10 +22,16 @@
             </div>
             <div class="paypal-pill">
                 <span class="paypal-badge">PayPal</span>
-                <span class="badge-text">Hackathon 2026 • Phase 1 Core</span>
+                <span class="badge-text">Developer Sandbox Active</span>
             </div>
         </div>
         <div class="header-status">
+            <button type="button" class="paypal-dashboard-btn" onclick="openPayPalTransactionsModal()" title="View Real Transactions Recorded on PayPal Sandbox">
+                <span class="paypal-p-icon">P</span>
+                <span class="btn-text">PayPal Sandbox Activity</span>
+                <span class="live-dot"></span>
+                <span class="ext-icon">↗</span>
+            </button>
             <div class="connection-status" id="connection-status">
                 <span class="pulse-dot"></span>
                 <span id="sse-label">Kitchen Stream Live</span>
@@ -32,7 +40,7 @@
                 <span class="avatar">👩‍🍳</span>
                 <div class="profile-info">
                     <span class="baker-name">Sweet Creations by Anna</span>
-                    <span class="baker-role">Home Baker • San Jose, CA</span>
+                    <span class="baker-role">Merchant: 7ZCHLWFHX5AXU</span>
                 </div>
             </div>
         </div>
@@ -52,6 +60,10 @@
                             <p class="subtitle">Direct WhatsApp / Instagram DM • Sweet Creations</p>
                         </div>
                     </div>
+                    <button type="button" class="header-catalogue-btn" onclick="openCatalogueModal()">
+                        <span>📖</span>
+                        <span>Catalogue</span>
+                    </button>
                 </div>
                 <div class="preset-dropdown-wrap">
                     <label for="preset-select" class="sr-only">Load Sample Inquiries</label>
@@ -74,6 +86,17 @@
                     <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
                     <div class="bubble-text">
                         Hi there! 👋 I'm <strong>Anna</strong>, owner and head cake artist at Sweet Creations. Tell me about your celebration or send a photo of what you have in mind—flavor cravings, guest count, and your date—and let's plan something delicious together! 💕
+                    </div>
+                    <div class="chat-suggestions">
+                        <button type="button" class="suggestion-chip" onclick="sendQuickReply('Hi Anna! Can I please see your cake catalogue and signature designs?')">
+                            📖 Browse Cake Catalogue
+                        </button>
+                        <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('unicorn')">
+                            🦄 Unicorn Cake (18 pax)
+                        </button>
+                        <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('vintage')">
+                            🎂 Vintage Lambeth Heart
+                        </button>
                     </div>
                     <span class="bubble-time">Just now</span>
                 </div>
@@ -186,13 +209,13 @@
         </section>
     </main>
 
-    <!-- Modal for PayPal Sandbox Payment Simulation -->
+    <!-- Modal for Customer PayPal Checkout & Guest Card Checkout -->
     <div class="modal-backdrop" id="checkout-modal" style="display: none;">
-        <div class="modal-window">
+        <div class="modal-window checkout-modal-window">
             <div class="modal-header">
                 <div class="paypal-logo-row">
                     <span class="paypal-logo-blue">Pay</span><span class="paypal-logo-gold">Pal</span>
-                    <span class="sandbox-badge">SANDBOX CHECKOUT</span>
+                    <span class="checkout-badge-pill">SECURE CHECKOUT</span>
                 </div>
                 <button class="modal-close-btn" onclick="closeCheckoutModal()">✕</button>
             </div>
@@ -202,22 +225,140 @@
                     <div class="order-amount-display" id="modal-order-amount">$0.00</div>
                     <div class="order-merchant">Merchant: Sweet Creations by Anna</div>
                 </div>
-                
-                <div class="payment-instructions">
-                    <p>Simulating <strong>PayPal Smart Payment Buttons</strong> for this order.</p>
+
+                <!-- Payment Method Selection Tabs -->
+                <div class="payment-tabs-bar">
+                    <button type="button" class="payment-tab-btn active" id="tab-btn-paypal" onclick="switchCheckoutTab('paypal')">
+                        <span class="tab-icon">🅿️</span>
+                        <span>PayPal / Wallet</span>
+                    </button>
+                    <button type="button" class="payment-tab-btn" id="tab-btn-card" onclick="switchCheckoutTab('card')">
+                        <span class="tab-icon">💳</span>
+                        <span>Debit / Credit Card (Guest)</span>
+                    </button>
                 </div>
 
-                <div class="paypal-button-group">
-                    <button class="pp-btn-yellow" id="pp-pay-now-btn" onclick="executeMockPayment()">
-                        <span class="pp-icon">P</span> Pay with <strong>PayPal</strong>
-                    </button>
-                    <button class="pp-btn-black" onclick="executeMockPayment()">
-                        Debit or Credit Card
-                    </button>
+                <!-- Tab 1: Official PayPal Smart Payment Buttons -->
+                <div id="tab-content-paypal" class="tab-pane active">
+                    <div id="paypal-smart-button-container"></div>
+                </div>
+
+                <!-- Tab 2: Direct Guest Card Checkout Form -->
+                <div id="tab-content-card" class="tab-pane" style="display: none;">
+                    <form id="guest-card-form" onsubmit="handleGuestCardPayment(event)">
+                        <div class="card-form-grid">
+                            <div class="form-group full-width">
+                                <label for="guest-card-name">Cardholder Name</label>
+                                <input type="text" id="guest-card-name" value="Jessica Taylor" required placeholder="First and last name">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="guest-card-number">Card Number</label>
+                                <div class="input-with-icons">
+                                    <input type="text" id="guest-card-number" value="4032 1084 9283 4242" required maxlength="19" placeholder="4000 1234 5678 9010">
+                                    <span class="card-brand-badge">VISA</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="guest-card-exp">Expires</label>
+                                <input type="text" id="guest-card-exp" value="12/28" required maxlength="5" placeholder="MM/YY">
+                            </div>
+                            <div class="form-group">
+                                <label for="guest-card-cvv">Security Code</label>
+                                <input type="password" id="guest-card-cvv" value="884" required maxlength="4" placeholder="CVC">
+                            </div>
+                            <div class="form-group">
+                                <label for="guest-card-zip">Billing Zip</label>
+                                <input type="text" id="guest-card-zip" value="95112" required placeholder="Zip / Postal">
+                            </div>
+                        </div>
+
+                        <button type="submit" id="guest-pay-submit-btn" class="guest-card-pay-btn">
+                            <span class="lock-icon">🔒</span>
+                            <span id="guest-pay-label">Pay $0.00 as Guest</span>
+                        </button>
+                        <p class="guest-card-subtext">No PayPal account needed. Processed securely via PayPal Merchant Gateway.</p>
+                    </form>
                 </div>
             </div>
             <div class="modal-footer">
-                <span>🔒 Encrypted 256-bit Sandbox Transaction</span>
+                <span>🔒 Secure 256-Bit Encrypted Payment • PayPal Sandbox Active</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Live PayPal Sandbox Transactions & Dashboard Activity -->
+    <div class="modal-backdrop" id="paypal-transactions-modal" style="display: none;">
+        <div class="modal-window tx-modal-window">
+            <div class="modal-header">
+                <div class="paypal-logo-row">
+                    <span class="paypal-logo-blue">Pay</span><span class="paypal-logo-gold">Pal</span>
+                    <span class="sandbox-badge">DEVELOPER SANDBOX DASHBOARD</span>
+                </div>
+                <button class="modal-close-btn" onclick="closePayPalTransactionsModal()">✕</button>
+            </div>
+            <div class="modal-body tx-modal-body">
+                <div class="tx-header-status">
+                    <div class="tx-status-item">
+                        <span class="label">Merchant Account:</span>
+                        <span class="val highlight">7ZCHLWFHX5AXU</span>
+                    </div>
+                    <div class="tx-status-item">
+                        <span class="label">Environment:</span>
+                        <span class="val online">🟢 Sandbox Connected</span>
+                    </div>
+                    <div class="tx-status-item">
+                        <span class="label">API Endpoint:</span>
+                        <span class="val">api-m.sandbox.paypal.com</span>
+                    </div>
+                </div>
+
+                <div class="tx-quick-actions">
+                    <a href="https://sandbox.paypal.com/activity" target="_blank" class="tx-ext-btn">
+                        <span>📊 Open Activity Dashboard (sandbox.paypal.com) ↗</span>
+                    </a>
+                    <a href="https://sandbox.paypal.com/invoice/manage" target="_blank" class="tx-ext-btn">
+                        <span>🧾 Open Invoices Dashboard (sandbox.paypal.com) ↗</span>
+                    </a>
+                    <button type="button" class="tx-refresh-btn" onclick="loadPayPalTransactions()">
+                        🔄 Refresh Live Records
+                    </button>
+                </div>
+
+                <div class="tx-list-title-row">
+                    <h4>Transactions Recorded in Your PayPal Sandbox:</h4>
+                    <span id="tx-records-count" class="tx-count-tag">0 records</span>
+                </div>
+                <div class="tx-list-container" id="paypal-tx-list">
+                    <div class="tx-loading">Loading live records from PayPal API...</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span>Real-time sync with PayPal Sandbox REST API (GET /v2/invoicing/invoices)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Full Cake Catalogue Browser -->
+    <div class="modal-backdrop" id="catalogue-modal" style="display: none;">
+        <div class="modal-window catalogue-modal-window">
+            <div class="modal-header">
+                <div class="catalogue-header-info">
+                    <div class="catalogue-modal-title">
+                        <span class="icon">🎂</span>
+                        <h3>Artisan Cake Catalogue</h3>
+                        <span class="sandbox-badge">PAYPAL CATALOG API</span>
+                    </div>
+                    <p class="subtitle">Handcrafted by Anna • San Jose, CA</p>
+                </div>
+                <button class="modal-close-btn" onclick="closeCatalogueModal()">✕</button>
+            </div>
+            <div class="modal-body catalogue-modal-body">
+                <div class="catalogue-grid" id="catalogue-modal-grid">
+                    <!-- Dynamic Catalogue Cards from PayPal API -->
+                </div>
+            </div>
+            <div class="modal-footer catalogue-modal-footer">
+                <span>✨ Tap any cake to customize with Anna in chat!</span>
             </div>
         </div>
     </div>

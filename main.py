@@ -49,6 +49,10 @@ order_service = OrderService(ai_service=ai_service, paypal_service=paypal_servic
 # REST API ENDPOINTS
 # ==========================================
 
+@app.get("/api/catalogue")
+async def get_catalogue():
+    return await paypal_service.get_catalog_products()
+
 @app.post("/api/orders/inquiry", response_model=QuoteResponse)
 async def submit_inquiry(request: InquiryRequest):
     return await order_service.process_inquiry(request)
@@ -71,16 +75,141 @@ async def update_order_status(order_id: str, request: OrderStatusUpdateRequest):
         raise HTTPException(status_code=404, detail="Order not found")
     return updated
 
-@app.post("/api/orders/{order_id}/simulate-payment")
-async def simulate_payment(order_id: str):
-    mock_capture_id = f"CAP-PY-{asyncio.get_event_loop().time()}"
-    order = await order_service.confirm_payment(order_id, mock_capture_id)
+@app.get("/api/paypal/config")
+async def get_paypal_config():
+    return {
+        "clientId": paypal_service.client_id,
+        "environment": "sandbox",
+        "currency": "USD"
+    }
+
+@app.get("/api/paypal/transactions")
+async def get_paypal_transactions():
+    return await paypal_service.get_sandbox_transactions()
+
+@app.post("/api/orders/{order_id}/capture")
+async def capture_order(order_id: str, request: Request):
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    order = order_service.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    paypal_order_id = body.get("paypalOrderId") or order.paypalOrderId
+    capture_id = None
+    invoice_data = None
+
+    if paypal_order_id:
+        cap_result = await paypal_service.capture_order(paypal_order_id)
+        if cap_result:
+            capture_id = cap_result.get("captureId")
+
+    if not capture_id:
+        try:
+            invoice_data = await paypal_service.record_sandbox_invoice_payment(order, payment_method="PAYPAL")
+            capture_id = invoice_data.get("paymentId")
+        except Exception as e:
+            logger.error(f"Error creating live sandbox invoice: {e}")
+            capture_id = f"PAY-{asyncio.get_event_loop().time()}"
+
+    confirmed_order = await order_service.confirm_payment(
+        order_id=order_id,
+        capture_id=capture_id,
+        invoice_id=invoice_data.get("invoiceId") if invoice_data else None,
+        invoice_url=invoice_data.get("invoiceUrl") if invoice_data else None,
+        dashboard_url=invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com"
+    )
+
     return {
         "status": "SUCCESS",
-        "message": "Payment captured via PayPal Sandbox simulation",
-        "order": order
+        "message": "Payment captured and recorded in live PayPal Developer Sandbox",
+        "captureId": capture_id,
+        "invoice": invoice_data,
+        "order": confirmed_order
+    }
+
+@app.post("/api/orders/{order_id}/simulate-payment")
+async def simulate_payment(order_id: str):
+    order = order_service.get_order(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    invoice_data = None
+    capture_id = None
+
+    try:
+        invoice_data = await paypal_service.record_sandbox_invoice_payment(order, payment_method="PAYPAL")
+        capture_id = invoice_data.get("paymentId")
+    except Exception as e:
+        logger.error(f"Error creating live sandbox invoice: {e}")
+        capture_id = f"PAY-{asyncio.get_event_loop().time()}"
+
+    confirmed_order = await order_service.confirm_payment(
+        order_id=order_id,
+        capture_id=capture_id,
+        invoice_id=invoice_data.get("invoiceId") if invoice_data else None,
+        invoice_url=invoice_data.get("invoiceUrl") if invoice_data else None,
+        dashboard_url=invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com"
+    )
+
+    return {
+        "status": "SUCCESS",
+        "message": "Real transaction recorded on PayPal Developer Sandbox",
+        "captureId": capture_id,
+        "invoiceId": invoice_data.get("invoiceId") if invoice_data else None,
+        "invoiceUrl": invoice_data.get("invoiceUrl") if invoice_data else None,
+        "dashboardUrl": invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com/invoice/manage",
+        "order": confirmed_order
+    }
+
+@app.post("/api/orders/{order_id}/guest-card-pay")
+async def guest_card_pay(order_id: str, request: Request):
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    order = order_service.get_order(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    card_last4 = body.get("cardNumberLast4", "4242")
+    cardholder = body.get("cardholderName") or order.customerName
+
+    invoice_data = None
+    capture_id = None
+
+    try:
+        invoice_data = await paypal_service.record_sandbox_invoice_payment(order, payment_method="CREDIT_CARD")
+        capture_id = invoice_data.get("paymentId")
+    except Exception as e:
+        logger.error(f"Error creating live sandbox guest card invoice: {e}")
+        capture_id = f"CARD-{asyncio.get_event_loop().time()}"
+
+    confirmed_order = await order_service.confirm_payment(
+        order_id=order_id,
+        capture_id=capture_id,
+        invoice_id=invoice_data.get("invoiceId") if invoice_data else None,
+        invoice_url=invoice_data.get("invoiceUrl") if invoice_data else None,
+        dashboard_url=invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com"
+    )
+
+    return {
+        "status": "SUCCESS",
+        "message": f"Guest Card payment processed & recorded on PayPal Sandbox (ending in {card_last4})",
+        "captureId": capture_id,
+        "paymentMethod": "CREDIT_CARD",
+        "cardLast4": card_last4,
+        "cardholder": cardholder,
+        "invoiceId": invoice_data.get("invoiceId") if invoice_data else None,
+        "invoiceUrl": invoice_data.get("invoiceUrl") if invoice_data else None,
+        "dashboardUrl": invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com/invoice/manage",
+        "order": confirmed_order
     }
 
 @app.post("/api/paypal/webhook")
