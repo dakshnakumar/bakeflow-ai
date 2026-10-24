@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BakeFlow AI & PayPal | Autonomous Order Lifecycle & Kitchen Sync</title>
+    <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+        <div class="logo-group">
+            <div class="brand-badge">
+                <span class="icon">🧁</span>
+                <span class="brand-title">BakeFlow AI</span>
+            </div>
+            <div class="paypal-pill">
+                <span class="paypal-badge">PayPal</span>
+                <span class="badge-text">Hackathon 2026 • Phase 1 Core</span>
+            </div>
+        </div>
+        <div class="header-status">
+            <div class="connection-status" id="connection-status">
+                <span class="pulse-dot"></span>
+                <span id="sse-label">Kitchen Stream Live</span>
+            </div>
+            <div class="baker-profile">
+                <span class="avatar">👩‍🍳</span>
+                <div class="profile-info">
+                    <span class="baker-name">Sweet Creations by Anna</span>
+                    <span class="baker-role">Home Baker • San Jose, CA</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Split Screen Workspace -->
+    <main class="split-workspace">
+        
+        <!-- LEFT PANEL: Customer Conversation & AI Quoting Simulator -->
+        <section class="panel chat-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="channel-icon">💬</span>
+                    <div>
+                        <h2>Customer Mobile Ingress</h2>
+                        <p class="subtitle">WhatsApp / Instagram DM conversational quoting</p>
+                    </div>
+                </div>
+                <div class="preset-dropdown-wrap">
+                    <label for="preset-select" class="sr-only">Load Sample Inquiries</label>
+                    <select id="preset-select" onchange="loadPresetInquiry()">
+                        <option value="">⚡ Load Sample Inquiries...</option>
+                        <option value="unicorn">1. Unicorn 2-Tier (18 pax) with custom fondant</option>
+                        <option value="vintage">2. Vintage Heart Lambeth Piping (10 pax) Eggless</option>
+                        <option value="chocolate">3. Belgian Dark Chocolate Celebration (25 pax)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Chat Message Window -->
+            <div class="chat-viewport" id="chat-viewport">
+                <!-- System intro banner -->
+                <div class="chat-date-divider">Today • Real-time AI Assistant</div>
+
+                <!-- Initial Baker welcome -->
+                <div class="chat-bubble incoming">
+                    <div class="bubble-sender">BakeFlow Assistant 🧁</div>
+                    <div class="bubble-text">
+                        Welcome to <strong>Sweet Creations by Anna</strong>! Send a picture of the cake you love along with your guest count, preferred flavor, and pickup date. I'll prepare an instant custom quote and secure your oven slot! ✨
+                    </div>
+                    <span class="bubble-time">Just now</span>
+                </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div class="chat-input-bar">
+                <div class="image-preview-chip" id="image-preview-chip" style="display: none;">
+                    <img id="preview-thumb" src="" alt="Cake Reference">
+                    <span class="chip-name" id="preview-filename">cake-reference.jpg</span>
+                    <button type="button" class="remove-chip-btn" onclick="clearSelectedImage()">✕</button>
+                </div>
+                <div class="input-row">
+                    <div class="quick-img-buttons">
+                        <button type="button" class="icon-tool-btn" title="Pick Unicorn Cake Photo" onclick="selectPresetImage('unicorn')">🦄</button>
+                        <button type="button" class="icon-tool-btn" title="Pick Vintage Cake Photo" onclick="selectPresetImage('vintage')">🎂</button>
+                        <button type="button" class="icon-tool-btn" title="Pick Chocolate Cake Photo" onclick="selectPresetImage('chocolate')">🍫</button>
+                    </div>
+                    <input type="text" id="chat-input" placeholder="Type cake requirements (e.g., 2-tier chocolate truffle for 15 guests this Saturday)..." onkeydown="handleChatKey(event)">
+                    <button type="button" id="send-btn" class="send-action-btn" onclick="sendInquiry()">
+                        <span>Send</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: Live Baker Kitchen Kanban & PayPal Reconciler -->
+        <section class="panel kanban-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span class="channel-icon">🍳</span>
+                    <div>
+                        <h2>Kitchen Production Kanban</h2>
+                        <p class="subtitle">Auto-synced via PayPal Webhooks (Live SSE Stream)</p>
+                    </div>
+                </div>
+                <div class="kanban-metrics">
+                    <div class="metric-badge">
+                        <span class="metric-label">Active Orders</span>
+                        <span class="metric-value" id="active-orders-count">2</span>
+                    </div>
+                    <div class="metric-badge highlight">
+                        <span class="metric-label">Today's Paid</span>
+                        <span class="metric-value" id="paid-total-value">$184.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kanban Columns Container -->
+            <div class="kanban-board">
+                
+                <!-- Column 1: Awaiting PayPal Payment -->
+                <div class="kanban-column" id="col-pending">
+                    <div class="column-header">
+                        <div class="col-title-group">
+                            <span class="col-indicator pending"></span>
+                            <h3>Payment Pending</h3>
+                        </div>
+                        <span class="ticket-counter" id="count-pending">0</span>
+                    </div>
+                    <div class="tickets-container" id="tickets-pending">
+                        <!-- Dynamic Order Cards -->
+                    </div>
+                </div>
+
+                <!-- Column 2: Confirmed / In Queue -->
+                <div class="kanban-column" id="col-confirmed">
+                    <div class="column-header">
+                        <div class="col-title-group">
+                            <span class="col-indicator confirmed"></span>
+                            <h3>Paid • In Queue</h3>
+                        </div>
+                        <span class="ticket-counter" id="count-confirmed">0</span>
+                    </div>
+                    <div class="tickets-container" id="tickets-confirmed">
+                        <!-- Dynamic Order Cards -->
+                    </div>
+                </div>
+
+                <!-- Column 3: In the Oven -->
+                <div class="kanban-column" id="col-baking">
+                    <div class="column-header">
+                        <div class="col-title-group">
+                            <span class="col-indicator baking"></span>
+                            <h3>In the Oven</h3>
+                        </div>
+                        <span class="ticket-counter" id="count-baking">0</span>
+                    </div>
+                    <div class="tickets-container" id="tickets-baking">
+                        <!-- Dynamic Order Cards -->
+                    </div>
+                </div>
+
+                <!-- Column 4: Ready for Pickup -->
+                <div class="kanban-column" id="col-ready">
+                    <div class="column-header">
+                        <div class="col-title-group">
+                            <span class="col-indicator ready"></span>
+                            <h3>Ready for Pickup</h3>
+                        </div>
+                        <span class="ticket-counter" id="count-ready">0</span>
+                    </div>
+                    <div class="tickets-container" id="tickets-ready">
+                        <!-- Dynamic Order Cards -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for PayPal Sandbox Payment Simulation -->
+    <div class="modal-backdrop" id="checkout-modal" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <div class="paypal-logo-row">
+                    <span class="paypal-logo-blue">Pay</span><span class="paypal-logo-gold">Pal</span>
+                    <span class="sandbox-badge">SANDBOX CHECKOUT</span>
+                </div>
+                <button class="modal-close-btn" onclick="closeCheckoutModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="order-summary-box">
+                    <div class="order-title" id="modal-order-title">Custom Cake Order</div>
+                    <div class="order-amount-display" id="modal-order-amount">$0.00</div>
+                    <div class="order-merchant">Merchant: Sweet Creations by Anna</div>
+                </div>
+                
+                <div class="payment-instructions">
+                    <p>Simulating <strong>PayPal Smart Payment Buttons</strong> for this order.</p>
+                </div>
+
+                <div class="paypal-button-group">
+                    <button class="pp-btn-yellow" id="pp-pay-now-btn" onclick="executeMockPayment()">
+                        <span class="pp-icon">P</span> Pay with <strong>PayPal</strong>
+                    </button>
+                    <button class="pp-btn-black" onclick="executeMockPayment()">
+                        Debit or Credit Card
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span>🔒 Encrypted 256-bit Sandbox Transaction</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>

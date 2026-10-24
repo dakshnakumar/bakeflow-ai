@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayPal Checkout - Sandbox</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f5f7fa;
+            color: #111827;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .checkout-box {
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            max-width: 440px;
+            width: 100%;
+            padding: 32px;
+            text-align: center;
+        }
+        .paypal-logo {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 24px;
+        }
+        .blue { color: #003087; }
+        .gold { color: #0079c1; }
+        .sandbox-pill {
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 99px;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        .order-desc {
+            font-size: 15px;
+            color: #4b5563;
+            margin-bottom: 8px;
+        }
+        .price {
+            font-size: 38px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 24px;
+        }
+        .btn-pay {
+            background: #ffc439;
+            color: #003087;
+            border: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 99px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(255, 196, 57, 0.4);
+            margin-bottom: 12px;
+        }
+        .btn-card {
+            background: #1f2937;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 16px;
+            border-radius: 99px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .footer-note {
+            margin-top: 24px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="checkout-box">
+        <div class="paypal-logo">
+            <span class="blue">Pay</span><span class="gold">Pal</span>
+        </div>
+        <div class="sandbox-pill">SANDBOX ENVIRONMENT</div>
+        <div class="order-desc" id="order-desc">Sweet Creations by Anna</div>
+        <div class="price" id="order-price">$0.00</div>
+        
+        <button class="btn-pay" onclick="completePayment()">Pay with PayPal</button>
+        <button class="btn-card" onclick="completePayment()">Pay with Debit or Credit Card</button>
+
+        <div class="footer-note">🔒 Simulated PayPal Sandbox for Hackathon 2026</div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const orderId = params.get('orderId');
+        const amount = params.get('amount') || '0.00';
+        const desc = params.get('desc') || 'Custom Cake Booking';
+
+        document.getElementById('order-price').textContent = `$${parseFloat(amount).toFixed(2)}`;
+        document.getElementById('order-desc').textContent = `${decodeURIComponent(desc)} (Order #${orderId})`;
+
+        async function completePayment() {
+            try {
+                const res = await fetch(`/api/orders/${orderId}/simulate-payment`, { method: 'POST' });
+                if (res.ok) {
+                    window.location.href = `/checkout-complete.html?orderId=${orderId}`;
+                }
+            } catch(e) {
+                alert('Payment capture failed: ' + e);
+            }
+        }
+    </script>
+</body>
+</html>

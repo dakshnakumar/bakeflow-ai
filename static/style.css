@@ -1,0 +1,978 @@
+:root {
+    --bg-base: #0c0f17;
+    --bg-surface: #141a29;
+    --bg-surface-elevated: #1a2236;
+    --bg-card: #202b42;
+    --bg-card-hover: #263350;
+    
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-highlight: rgba(0, 112, 186, 0.35);
+
+    --primary-paypal: #0070ba;
+    --primary-paypal-gold: #ffc439;
+    --primary-paypal-dark: #003087;
+
+    --accent-pink: #f472b6;
+    --accent-purple: #a855f7;
+    --accent-emerald: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-sky: #38bdf8;
+
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 20px;
+    --radius-full: 9999px;
+
+    --shadow-soft: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    --shadow-glow: 0 0 25px rgba(0, 112, 186, 0.25);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+/* =========================================
+   HEADER
+========================================= */
+.app-header {
+    background: rgba(20, 26, 41, 0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.logo-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.brand-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand-badge .icon {
+    font-size: 26px;
+    filter: drop-shadow(0 2px 8px rgba(244, 114, 182, 0.4));
+}
+
+.brand-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #ffffff 30%, #f472b6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.paypal-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 112, 186, 0.15);
+    border: 1px solid rgba(0, 112, 186, 0.35);
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+}
+
+.paypal-badge {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    color: #38bdf8;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+}
+
+.badge-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.header-status {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--accent-emerald);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    font-weight: 600;
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--accent-emerald);
+    box-shadow: 0 0 10px var(--accent-emerald);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+.baker-profile {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.baker-profile .avatar {
+    font-size: 24px;
+    background: var(--bg-card);
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: 1px solid var(--border-subtle);
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.baker-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.baker-role {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* =========================================
+   SPLIT WORKSPACE LAYOUT
+========================================= */
+.split-workspace {
+    display: grid;
+    grid-template-columns: 460px 1fr;
+    flex: 1;
+    height: calc(100vh - 65px);
+    overflow: hidden;
+}
+
+@media (max-width: 1080px) {
+    .split-workspace {
+        grid-template-columns: 1fr;
+        height: auto;
+        overflow-y: auto;
+    }
+}
+
+.panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-surface);
+    position: relative;
+}
+
+.chat-panel {
+    border-right: 1px solid var(--border-subtle);
+    background: linear-gradient(180deg, #101626 0%, #0d121f 100%);
+}
+
+.kanban-panel {
+    background: var(--bg-base);
+}
+
+.panel-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(20, 26, 41, 0.7);
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.channel-icon {
+    font-size: 22px;
+}
+
+.panel-title h2 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.subtitle {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Preset selector */
+#preset-select {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+}
+
+#preset-select:hover {
+    border-color: var(--primary-paypal);
+}
+
+/* Kanban metrics in header */
+.kanban-metrics {
+    display: flex;
+    gap: 10px;
+}
+
+.metric-badge {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.metric-badge.highlight {
+    background: rgba(0, 112, 186, 0.15);
+    border-color: rgba(0, 112, 186, 0.4);
+}
+
+.metric-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+}
+
+.metric-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--primary-paypal-gold);
+}
+
+/* =========================================
+   CHAT VIEWPORT & MESSAGES
+========================================= */
+.chat-viewport {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.chat-date-divider {
+    align-self: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-surface-elevated);
+    padding: 4px 14px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-subtle);
+}
+
+.chat-bubble {
+    max-width: 86%;
+    padding: 12px 16px;
+    border-radius: var(--radius-md);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+    animation: fadeInSlide 0.25s ease-out;
+}
+
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.chat-bubble.incoming {
+    align-self: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-top-left-radius: 4px;
+}
+
+.chat-bubble.outgoing {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #0070ba 0%, #004b80 100%);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-top-right-radius: 4px;
+}
+
+.bubble-sender {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-pink);
+}
+
+.chat-bubble.outgoing .bubble-sender {
+    color: #bae6fd;
+}
+
+.bubble-text {
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+
+.bubble-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    align-self: flex-end;
+    margin-top: 2px;
+}
+
+.chat-bubble.outgoing .bubble-time {
+    color: #93c5fd;
+}
+
+/* Attached Image in chat */
+.bubble-image-wrap {
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin-bottom: 4px;
+    max-height: 180px;
+}
+
+.bubble-image-wrap img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+}
+
+/* Quote Card inside Chat */
+.quote-card {
+    background: rgba(12, 15, 23, 0.6);
+    border: 1px solid rgba(255, 196, 57, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.quote-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.quote-badge {
+    font-size: 10px;
+    font-weight: 800;
+    background: rgba(255, 196, 57, 0.15);
+    color: var(--primary-paypal-gold);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.quote-total {
+    font-family: 'Outfit', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.quote-details {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+/* Pay with PayPal Button in Chat */
+.paypal-action-button {
+    background: linear-gradient(180deg, #ffc439 0%, #f6b426 100%);
+    color: #003087;
+    border: none;
+    padding: 10px 16px;
+    border-radius: var(--radius-full);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 196, 57, 0.3);
+    transition: all 0.2s;
+    margin-top: 6px;
+    text-decoration: none;
+}
+
+.paypal-action-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(255, 196, 57, 0.45);
+}
+
+/* Chat Input Bar */
+.chat-input-bar {
+    padding: 12px 16px;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.image-preview-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    width: fit-content;
+}
+
+.image-preview-chip img {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.chip-name {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.remove-chip-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.quick-img-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.icon-tool-btn {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 8px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: transform 0.15s;
+}
+
+.icon-tool-btn:hover {
+    transform: scale(1.1);
+    border-color: var(--primary-paypal);
+}
+
+#chat-input {
+    flex: 1;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#chat-input:focus {
+    border-color: var(--primary-paypal);
+}
+
+.send-action-btn {
+    background: var(--primary-paypal);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.send-action-btn:hover {
+    background: #005ea6;
+}
+
+/* =========================================
+   KANBAN BOARD & TICKETS
+========================================= */
+.kanban-board {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 20px;
+    overflow-x: auto;
+    background: #0a0e17;
+}
+
+@media (max-width: 1200px) {
+    .kanban-board {
+        grid-template-columns: repeat(2, 280px);
+    }
+}
+
+.kanban-column {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    min-width: 250px;
+    max-height: 100%;
+}
+
+.column-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(20, 26, 41, 0.4);
+}
+
+.col-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.col-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.col-indicator.pending { background-color: var(--accent-amber); box-shadow: 0 0 8px var(--accent-amber); }
+.col-indicator.confirmed { background-color: var(--primary-paypal); box-shadow: 0 0 8px var(--primary-paypal); }
+.col-indicator.baking { background-color: var(--accent-pink); box-shadow: 0 0 8px var(--accent-pink); }
+.col-indicator.ready { background-color: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); }
+
+.column-header h3 {
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.ticket-counter {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    background: var(--bg-surface-elevated);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.tickets-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Kanban Ticket Card */
+.order-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.order-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.order-card.just-updated {
+    animation: flashHighlight 1.5s ease-out;
+}
+
+@keyframes flashHighlight {
+    0% { border-color: var(--primary-paypal-gold); box-shadow: 0 0 20px rgba(255, 196, 57, 0.5); }
+    100% { border-color: var(--border-subtle); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+}
+
+.card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.order-id-badge {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 13px;
+    color: #38bdf8;
+}
+
+.price-pill {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--primary-paypal-gold);
+}
+
+.card-customer {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.card-cake-info {
+    display: flex;
+    gap: 10px;
+}
+
+.card-cake-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--border-subtle);
+}
+
+.card-cake-specs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.spec-theme {
+    font-size: 12px;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.spec-flavor {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.spec-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.card-pickup-date {
+    font-size: 11px;
+    color: var(--accent-amber);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(245, 158, 11, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+    width: fit-content;
+}
+
+/* Card Actions */
+.card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 7px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+}
+
+.action-btn.bake-btn {
+    background: rgba(244, 114, 182, 0.15);
+    color: #f472b6;
+    border: 1px solid rgba(244, 114, 182, 0.3);
+}
+
+.action-btn.bake-btn:hover {
+    background: #f472b6;
+    color: #0c0f17;
+}
+
+.action-btn.ready-btn {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.action-btn.ready-btn:hover {
+    background: #10b981;
+    color: #0c0f17;
+}
+
+.action-btn.complete-btn {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.action-btn.complete-btn:hover {
+    background: #38bdf8;
+    color: #0c0f17;
+}
+
+.action-btn.pay-simulate-btn {
+    background: var(--primary-paypal-gold);
+    color: #003087;
+    font-weight: 800;
+}
+
+/* =========================================
+   PAYPAL MODAL WINDOW
+========================================= */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    animation: fadeIn 0.2s;
+}
+
+.modal-window {
+    background: #ffffff;
+    color: #111827;
+    width: 420px;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.paypal-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.paypal-logo-blue {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: #003087;
+}
+
+.paypal-logo-gold {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 20px;
+    color: #0079c1;
+}
+
+.sandbox-badge {
+    font-size: 10px;
+    font-weight: 800;
+    background: #fef3c7;
+    color: #92400e;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
+.modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #6b7280;
+}
+
+.modal-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.order-summary-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius-md);
+    padding: 16px;
+    text-align: center;
+}
+
+.order-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.order-amount-display {
+    font-family: 'Outfit', sans-serif;
+    font-size: 32px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 4px 0;
+}
+
+.order-merchant {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.payment-instructions {
+    font-size: 12px;
+    color: #64748b;
+    text-align: center;
+}
+
+.paypal-button-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pp-btn-yellow {
+    background: #ffc439;
+    color: #003087;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.pp-btn-yellow .pp-icon {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 900;
+    font-style: italic;
+    background: #003087;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.pp-btn-black {
+    background: #2c2e2f;
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.modal-footer {
+    padding: 12px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+}
