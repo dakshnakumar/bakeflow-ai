@@ -28,8 +28,10 @@ let cachedCatalogue = [];
 
 document.addEventListener('DOMContentLoaded', () => {
     initSseKitchenStream();
+    initFinanceGrid();
+    initKitchenGrid();
     loadAllOrders();
-    fetchCatalogue(); // Preload PayPal catalogue in background
+    fetchCatalogue();
 });
 
 // ==========================================
@@ -569,14 +571,7 @@ function renderPaymentSuccess(data, orderId, amount, methodLabel = 'PayPal') {
                     <span>PayPal Invoice:</span> <code>${escapeHtml(invId)}</code>
                 </div>
                 ` : ''}
-                <div class="receipt-links">
-                    <a href="${invUrl}" target="_blank" class="receipt-link-btn">
-                        🧾 View on PayPal Sandbox ↗
-                    </a>
-                    <a href="https://sandbox.paypal.com/invoice/manage" target="_blank" class="receipt-link-btn outline">
-                        📊 Merchant Sandbox Dashboard ↗
-                    </a>
-                </div>
+
             </div>
             <p style="margin-top: 8px;">Order #${orderId} is now queued on our Kitchen Board. I will begin preparing your handcrafted cake! 🧁</p>
         </div>
@@ -600,18 +595,33 @@ function initSseKitchenStream() {
 
     eventSource.addEventListener('ORDER_QUOTED', (e) => {
         const order = JSON.parse(e.data);
+        const idx = cachedOrders.findIndex(o => o.id === order.id);
+        if (idx >= 0) cachedOrders[idx] = order;
+        else cachedOrders.push(order);
         upsertTicket(order, true);
+        updateFinancialDashboard(cachedOrders);
+        updateKitchenGrid(cachedOrders);
     });
 
     eventSource.addEventListener('ORDER_PAID', (e) => {
         const order = JSON.parse(e.data);
+        const idx = cachedOrders.findIndex(o => o.id === order.id);
+        if (idx >= 0) cachedOrders[idx] = order;
+        else cachedOrders.push(order);
         upsertTicket(order, true);
+        updateFinancialDashboard(cachedOrders);
+        updateKitchenGrid(cachedOrders);
         playPopSound();
     });
 
     eventSource.addEventListener('STATUS_UPDATED', (e) => {
         const order = JSON.parse(e.data);
+        const idx = cachedOrders.findIndex(o => o.id === order.id);
+        if (idx >= 0) cachedOrders[idx] = order;
+        else cachedOrders.push(order);
         upsertTicket(order, true);
+        updateFinancialDashboard(cachedOrders);
+        updateKitchenGrid(cachedOrders);
     });
 
     eventSource.onerror = (err) => {
@@ -627,8 +637,11 @@ async function loadAllOrders() {
         if (res.ok) {
             const orders = await res.json();
             clearKanbanColumns();
+            cachedOrders = orders;
             orders.forEach(order => upsertTicket(order, false));
             updateMetrics(orders);
+            updateFinancialDashboard(orders);
+            updateKitchenGrid(orders);
         }
     } catch (e) {
         console.error("Failed to load orders:", e);
@@ -885,3 +898,442 @@ async function loadPayPalTransactions() {
         container.innerHTML = '<div class="tx-error">Network error connecting to PayPal API endpoint.</div>';
     }
 }
+
+
+
+// ==========================================
+// 4. AG GRID & MULTI-TAB ARCHITECTURE
+// ==========================================
+let cachedOrders = [];
+let financeGridApi = null;
+let kitchenGridApi = null;
+let activeMainTab = 'chat';
+let isSplitMode = false;
+let currentFinanceFilter = 'ALL';
+
+function initFinanceGrid() {
+    const gridDiv = document.getElementById('financeGrid');
+    if (!gridDiv || typeof agGrid === 'undefined') return;
+
+    const columnDefs = [
+        {
+            field: 'id',
+            headerName: 'Order ID',
+            pinned: 'left',
+            width: 120,
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return `<strong class="ag-pinned-label">${params.value}</strong>`;
+                return `<span class="ag-order-id-badge">#${escapeHtml(params.value)}</span>`;
+            }
+        },
+        {
+            field: 'customerName',
+            headerName: 'Customer',
+            width: 160,
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return `<span class="ag-pinned-meta">${params.value}</span>`;
+                return `<div class="ag-customer-cell">👤 ${escapeHtml(params.value)}</div>`;
+            }
+        },
+        {
+            field: 'orderDate',
+            headerName: 'Date',
+            width: 110,
+            valueGetter: params => {
+                if (params.node && params.node.rowPinned) return '';
+                const d = new Date(params.data.createdAt || Date.now());
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            }
+        },
+        {
+            field: 'paymentMethod',
+            headerName: 'Payment Method',
+            width: 155,
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return '';
+                const capId = params.data.paypalCaptureId || '';
+                const isCard = capId.startsWith('CARD');
+                return isCard 
+                    ? `<span class="ag-method-badge card">💳 Guest Card</span>`
+                    : `<span class="ag-method-badge paypal"><span class="pp-p-tiny">P</span> PayPal</span>`;
+            }
+        },
+        {
+            field: 'totalAmount',
+            headerName: 'Gross ($)',
+            width: 120,
+            type: 'rightAligned',
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return `<strong class="ag-pinned-gross">$${params.value.toFixed(2)}</strong>`;
+                return `<span class="ag-amount-gross">$${params.value.toFixed(2)}</span>`;
+            }
+        },
+        {
+            field: 'paypalFee',
+            headerName: 'PayPal Fee (-$)',
+            width: 145,
+            type: 'rightAligned',
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return `<strong class="ag-pinned-fee">-$${params.value.toFixed(2)}</strong>`;
+                return `<span class="ag-amount-fee">-$${params.value.toFixed(2)}</span>`;
+            }
+        },
+        {
+            field: 'netAmount',
+            headerName: 'Net Profit ($)',
+            width: 135,
+            type: 'rightAligned',
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return `<strong class="ag-pinned-net">$${params.value.toFixed(2)}</strong>`;
+                return `<span class="ag-amount-net">$${params.value.toFixed(2)}</span>`;
+            }
+        },
+        {
+            field: 'paymentStatus',
+            headerName: 'Settlement Status',
+            width: 150,
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return `<span class="ag-pinned-pill">${params.value}</span>`;
+                const isPaid = params.data.status !== 'PAYMENT_PENDING' && params.data.status !== 'QUOTED';
+                return isPaid 
+                    ? `<span class="ag-status-pill paid">PAID ✅</span>`
+                    : `<span class="ag-status-pill pending">PENDING ⏳</span>`;
+            }
+        },
+        {
+            field: 'paypalInvoiceId',
+            headerName: 'PayPal Invoice / ID',
+            width: 185,
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return '';
+                const inv = params.data.paypalInvoiceId;
+                const cap = params.data.paypalCaptureId;
+                if (inv) {
+                    return `<span class="ag-inv-code">${escapeHtml(inv)}</span>`;
+                } else if (cap) {
+                    return `<span class="ag-cap-code">${escapeHtml(cap)}</span>`;
+                }
+                return `<span class="ag-muted-text">Awaiting Checkout</span>`;
+            }
+        },
+        {
+            field: 'receiptLink',
+            headerName: 'Sandbox Invoice',
+            width: 160,
+            cellRenderer: params => {
+                if (params.node && params.node.rowPinned) return '';
+                const invUrl = params.data.paypalInvoiceUrl;
+                const invId = params.data.paypalInvoiceId;
+                if (invUrl || invId) {
+                    const url = invUrl || `https://www.sandbox.paypal.com/invoice/p/#${invId}`;
+                    return `<a href="${url}" target="_blank" class="ag-paypal-receipt-btn">View Receipt ↗</a>`;
+                }
+                return `<span class="ag-dash-na">—</span>`;
+            }
+        }
+    ];
+
+    const gridOptions = {
+        theme: 'legacy',
+        columnDefs: columnDefs,
+        rowData: [],
+        pinnedBottomRowData: [],
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true
+        },
+        rowHeight: 46,
+        headerHeight: 44,
+        animateRows: true
+    };
+
+    try {
+        financeGridApi = agGrid.createGrid(gridDiv, gridOptions);
+    } catch (e) {
+        console.error("Failed to initialize financeGrid:", e);
+    }
+}
+
+function initKitchenGrid() {
+    const gridDiv = document.getElementById('kitchenGrid');
+    if (!gridDiv || typeof agGrid === 'undefined') return;
+
+    const columnDefs = [
+        {
+            field: 'id',
+            headerName: 'Order ID',
+            pinned: 'left',
+            width: 115,
+            cellRenderer: params => `<span class="ag-order-id-badge">#${escapeHtml(params.value)}</span>`
+        },
+        {
+            field: 'customerName',
+            headerName: 'Customer',
+            width: 160,
+            cellRenderer: params => `<div class="ag-customer-cell">👤 ${escapeHtml(params.value)}</div>`
+        },
+        {
+            field: 'theme',
+            headerName: 'Cake Theme',
+            width: 180,
+            valueGetter: params => params.data.cakeSpec ? params.data.cakeSpec.theme : 'Custom Cake',
+            cellRenderer: params => `<span class="ag-cake-theme">🎂 ${escapeHtml(params.value)}</span>`
+        },
+        {
+            field: 'flavor',
+            headerName: 'Flavor & Specs',
+            width: 220,
+            valueGetter: params => {
+                const s = params.data.cakeSpec;
+                if (!s) return 'Artisan Cake';
+                return `${s.flavor} (${s.servings}p • ${s.tiers}T)`;
+            }
+        },
+        {
+            field: 'dietary',
+            headerName: 'Dietary',
+            width: 130,
+            valueGetter: params => params.data.cakeSpec ? params.data.cakeSpec.dietaryPreferences : 'Standard',
+            cellRenderer: params => `<span class="ag-dietary-tag">${escapeHtml(params.value)}</span>`
+        },
+        {
+            field: 'pickupDate',
+            headerName: 'Pickup Date',
+            width: 130,
+            valueGetter: params => params.data.cakeSpec ? params.data.cakeSpec.pickupDate : 'ASAP',
+            cellRenderer: params => `📅 ${escapeHtml(params.value)}`
+        },
+        {
+            field: 'status',
+            headerName: 'Kitchen Status',
+            width: 160,
+            cellRenderer: params => {
+                const st = params.value;
+                let label = st;
+                let cls = 'pending';
+                if (st === 'CONFIRMED') { label = 'Paid • In Queue'; cls = 'confirmed'; }
+                else if (st === 'BAKING') { label = 'In the Oven 🎂'; cls = 'baking'; }
+                else if (st === 'READY_FOR_PICKUP') { label = 'Ready for Pickup 📦'; cls = 'ready'; }
+                else if (st === 'COMPLETED') { label = 'Picked Up ✅'; cls = 'completed'; }
+                return `<span class="ag-kitchen-status-pill ${cls}">${label}</span>`;
+            }
+        },
+        {
+            field: 'actions',
+            headerName: 'Kitchen Action',
+            width: 160,
+            cellRenderer: params => {
+                const o = params.data;
+                if (o.status === 'CONFIRMED') {
+                    return `<button class="ag-action-btn bake" onclick="updateOrderStatus('${o.id}', 'BAKING')">👩‍🍳 Start Baking</button>`;
+                } else if (o.status === 'BAKING') {
+                    return `<button class="ag-action-btn ready" onclick="updateOrderStatus('${o.id}', 'READY_FOR_PICKUP')">📦 Box & Ready</button>`;
+                } else if (o.status === 'READY_FOR_PICKUP') {
+                    return `<button class="ag-action-btn complete" onclick="updateOrderStatus('${o.id}', 'COMPLETED')">✅ Complete</button>`;
+                }
+                return `<span class="ag-muted-text">—</span>`;
+            }
+        }
+    ];
+
+    const gridOptions = {
+        theme: 'legacy',
+        columnDefs: columnDefs,
+        rowData: [],
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true
+        },
+        rowHeight: 46,
+        headerHeight: 44,
+        animateRows: true
+    };
+
+    try {
+        kitchenGridApi = agGrid.createGrid(gridDiv, gridOptions);
+    } catch (e) {
+        console.error("Failed to initialize kitchenGrid:", e);
+    }
+}
+
+function updateFinancialDashboard(orders) {
+    if (!orders) return;
+
+    let totalSettledGross = 0;
+    let totalSettledFees = 0;
+    let totalSettledNet = 0;
+    let paidCount = 0;
+    let pendingCount = 0;
+
+    orders.forEach(o => {
+        const isPaid = o.status !== 'PAYMENT_PENDING' && o.status !== 'QUOTED' && o.status !== 'CANCELLED';
+        const fee = (o.totalAmount * 0.0299) + 0.49;
+        const net = o.totalAmount - fee;
+
+        if (isPaid) {
+            totalSettledGross += o.totalAmount;
+            totalSettledFees += fee;
+            totalSettledNet += net;
+            paidCount++;
+        } else {
+            pendingCount++;
+        }
+    });
+
+    // Update KPI Card DOM
+    const grossEl = document.getElementById('kpi-gross-revenue');
+    const grossSubEl = document.getElementById('kpi-gross-orders');
+    const feesEl = document.getElementById('kpi-paypal-fees');
+    const netEl = document.getElementById('kpi-net-payout');
+    const netMarginEl = document.getElementById('kpi-net-margin');
+    const rateEl = document.getElementById('kpi-settlement-rate');
+    const rateDetailEl = document.getElementById('kpi-settlement-detail');
+
+    if (grossEl) grossEl.textContent = `$${totalSettledGross.toFixed(2)}`;
+    if (grossSubEl) grossSubEl.textContent = `${paidCount} Settled Orders`;
+    if (feesEl) feesEl.textContent = `-$${totalSettledFees.toFixed(2)}`;
+    if (netEl) netEl.textContent = `$${totalSettledNet.toFixed(2)}`;
+    if (netMarginEl) {
+        const marginPct = totalSettledGross > 0 ? ((totalSettledNet / totalSettledGross) * 100).toFixed(1) : '100.0';
+        netMarginEl.textContent = `Margin: ${marginPct}% of Gross`;
+    }
+    if (rateEl) {
+        const total = orders.length || 1;
+        rateEl.textContent = `${((paidCount / total) * 100).toFixed(0)}%`;
+    }
+    if (rateDetailEl) rateDetailEl.textContent = `${paidCount} Paid • ${pendingCount} Pending`;
+
+    // Filter rows based on active chip
+    let filteredOrders = orders;
+    if (currentFinanceFilter === 'PAID') {
+        filteredOrders = orders.filter(o => o.status !== 'PAYMENT_PENDING' && o.status !== 'QUOTED' && o.status !== 'CANCELLED');
+    } else if (currentFinanceFilter === 'PENDING') {
+        filteredOrders = orders.filter(o => o.status === 'PAYMENT_PENDING' || o.status === 'QUOTED');
+    }
+
+    const formattedRows = filteredOrders.map(o => {
+        const isPaid = o.status !== 'PAYMENT_PENDING' && o.status !== 'QUOTED';
+        const fee = (o.totalAmount * 0.0299) + 0.49;
+        const net = o.totalAmount - fee;
+        return {
+            ...o,
+            paypalFee: fee,
+            netAmount: net,
+            paymentStatus: isPaid ? 'PAID' : 'PENDING'
+        };
+    });
+
+    const pinnedRows = [{
+        id: 'TOTAL',
+        customerName: `${paidCount} Settled Invoices`,
+        orderDate: '',
+        paymentMethod: '',
+        totalAmount: totalSettledGross,
+        paypalFee: totalSettledFees,
+        netAmount: totalSettledNet,
+        paymentStatus: `${((paidCount / (orders.length || 1)) * 100).toFixed(0)}% Settled`,
+        paypalInvoiceId: '',
+        receiptLink: ''
+    }];
+
+    if (financeGridApi) {
+        financeGridApi.setGridOption('rowData', formattedRows);
+        financeGridApi.setGridOption('pinnedBottomRowData', pinnedRows);
+    }
+}
+
+function updateKitchenGrid(orders) {
+    if (!orders || !kitchenGridApi) return;
+    kitchenGridApi.setGridOption('rowData', orders);
+}
+
+function switchMainTab(tab) {
+    activeMainTab = tab;
+    document.querySelectorAll('.main-nav-tab').forEach(t => t.classList.remove('active'));
+    const activeTabBtn = document.getElementById(`tab-nav-${tab}`);
+    if (activeTabBtn) activeTabBtn.classList.add('active');
+
+    const wrapper = document.getElementById('main-workspace-wrapper');
+    if (isSplitMode) {
+        document.getElementById('pane-chat').classList.add('active');
+        document.getElementById('pane-kitchen').classList.toggle('active', tab === 'kitchen');
+        document.getElementById('pane-finance').classList.toggle('active', tab === 'finance');
+    } else {
+        document.querySelectorAll('.tab-panel-view').forEach(p => p.classList.remove('active'));
+        const pane = document.getElementById(`pane-${tab}`);
+        if (pane) pane.classList.add('active');
+    }
+
+    setTimeout(() => {
+        if (tab === 'finance' && financeGridApi) financeGridApi.sizeColumnsToFit();
+        if (tab === 'kitchen' && kitchenGridApi) kitchenGridApi.sizeColumnsToFit();
+    }, 50);
+}
+
+function switchKitchenSubView(view) {
+    document.getElementById('subswitch-kanban').classList.toggle('active', view === 'kanban');
+    document.getElementById('subswitch-grid').classList.toggle('active', view === 'grid');
+
+    const kanbanView = document.getElementById('kitchen-kanban-view');
+    const gridView = document.getElementById('kitchen-grid-view');
+
+    if (view === 'kanban') {
+        kanbanView.style.display = 'block';
+        gridView.style.display = 'none';
+    } else {
+        kanbanView.style.display = 'none';
+        gridView.style.display = 'block';
+        setTimeout(() => {
+            if (kitchenGridApi) kitchenGridApi.sizeColumnsToFit();
+        }, 50);
+    }
+}
+
+function toggleSplitMode() {
+    isSplitMode = !isSplitMode;
+    const wrapper = document.getElementById('main-workspace-wrapper');
+    const toggleBtn = document.getElementById('split-mode-toggle');
+
+    wrapper.classList.toggle('split-layout-mode', isSplitMode);
+    toggleBtn.classList.toggle('active', isSplitMode);
+
+    if (isSplitMode) {
+        document.getElementById('split-mode-text').textContent = 'Tab View';
+        if (activeMainTab === 'chat') activeMainTab = 'kitchen';
+        switchMainTab(activeMainTab);
+    } else {
+        document.getElementById('split-mode-text').textContent = 'Split View';
+        switchMainTab(activeMainTab);
+    }
+}
+
+function onFinanceSearch(val) {
+    if (financeGridApi) {
+        financeGridApi.setGridOption('quickFilterText', val);
+    }
+}
+
+function clearFinanceSearch() {
+    const inp = document.getElementById('finance-search-input');
+    if (inp) inp.value = '';
+    if (financeGridApi) financeGridApi.setGridOption('quickFilterText', '');
+}
+
+function filterFinanceStatus(status) {
+    currentFinanceFilter = status;
+    document.querySelectorAll('.status-chip').forEach(c => c.classList.remove('active'));
+    const chip = document.getElementById(`fchip-${status.toLowerCase()}`);
+    if (chip) chip.classList.add('active');
+    updateFinancialDashboard(cachedOrders);
+}
+
+function exportFinanceCsv() {
+    if (financeGridApi) {
+        financeGridApi.exportDataAsCsv({
+            fileName: `BakeFlow_PayPal_Ledger_${new Date().toISOString().slice(0, 10)}.csv`
+        });
+    }
+}
+

@@ -9,8 +9,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- AG Grid Community CSS & Themes (v33) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.0/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.0/styles/ag-theme-quartz.css">
     <!-- PayPal JavaScript SDK for Sandbox Checkout with US buyer emulation to bypass geo-restrictions -->
     <script src="https://www.paypal.com/sdk/js?client-id=AbTiEIdzSFuFa52u9YgXFnn2XHJZH2z5_UggAUX18lAHMYqUm8Ny3EUS8pgag20eRBxdl-N4v7sq8hz-&currency=USD&buyer-country=US&components=buttons&enable-funding=card"></script>
+    <!-- AG Grid Community JavaScript (v33) -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.0/dist/ag-grid-community.min.js"></script>
 </head>
 <body>
     <!-- Top Navigation Header -->
@@ -46,167 +51,294 @@
         </div>
     </header>
 
-    <!-- Main Split Screen Workspace -->
-    <main class="split-workspace">
+    <!-- Global 3-Tab Navigation Bar -->
+    <nav class="app-navigation-bar">
+        <div class="nav-tabs-container">
+            <button type="button" class="main-nav-tab active" id="tab-nav-chat" onclick="switchMainTab('chat')">
+                <span class="tab-icon">💬</span>
+                <span class="tab-text">Customer Chat & AI Agent</span>
+            </button>
+            <button type="button" class="main-nav-tab" id="tab-nav-kitchen" onclick="switchMainTab('kitchen')">
+                <span class="tab-icon">🎂</span>
+                <span class="tab-text">Kitchen Operations</span>
+                <span class="tab-pill-badge" id="kitchen-active-badge">2</span>
+            </button>
+            <button type="button" class="main-nav-tab finance-tab" id="tab-nav-finance" onclick="switchMainTab('finance')">
+                <span class="tab-icon">📊</span>
+                <span class="tab-text">PayPal Financial Hub & Ledger</span>
+                <span class="ag-grid-tag">AG Grid</span>
+            </button>
+        </div>
+        <div class="nav-extra-controls">
+            <button type="button" class="view-mode-toggle" id="split-mode-toggle" onclick="toggleSplitMode()" title="Toggle Side-by-Side Dual View">
+                <span id="split-mode-icon">◫</span>
+                <span id="split-mode-text">Split View</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Workspace with Tab Views -->
+    <main class="main-workspace-wrapper" id="main-workspace-wrapper">
         
-        <!-- LEFT PANEL: Customer Conversation & Merchant Dialogue Simulator -->
-        <section class="panel chat-panel">
-            <div class="panel-header">
-                <div class="header-top-row">
+        <!-- ============================================================== -->
+        <!-- TAB 1: Customer Conversation & Merchant Dialogue Simulator     -->
+        <!-- ============================================================== -->
+        <section class="tab-panel-view active" id="pane-chat">
+            <div class="panel chat-panel">
+                <div class="panel-header">
+                    <div class="header-top-row">
+                        <div class="panel-title">
+                            <span class="channel-icon">👩‍🍳</span>
+                            <div>
+                                <h2>Chat with Anna (Baker & Owner)</h2>
+                                <p class="subtitle">Direct WhatsApp / Instagram DM • Sweet Creations</p>
+                            </div>
+                        </div>
+                        <button type="button" class="header-catalogue-btn" onclick="openCatalogueModal()">
+                            <span>📖</span>
+                            <span>Catalogue</span>
+                        </button>
+                    </div>
+                    <div class="preset-dropdown-wrap">
+                        <label for="preset-select" class="sr-only">Load Sample Inquiries</label>
+                        <select id="preset-select" onchange="loadPresetInquiry()">
+                            <option value="">⚡ Load Sample Inquiries...</option>
+                            <option value="unicorn">1. Unicorn 2-Tier (18 pax) with custom fondant</option>
+                            <option value="vintage">2. Vintage Heart Lambeth Piping (10 pax) Eggless</option>
+                            <option value="chocolate">3. Belgian Dark Chocolate Celebration (25 pax)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Chat Message Window -->
+                <div class="chat-viewport" id="chat-viewport">
+                    <div class="chat-date-divider">Today • Direct Conversation with Anna</div>
+
+                    <div class="chat-bubble incoming">
+                        <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
+                        <div class="bubble-text">
+                            Hi there! 👋 I'm <strong>Anna</strong>, owner and head cake artist at Sweet Creations. Tell me about your celebration or send a photo of what you have in mind—flavor cravings, guest count, and your date—and let's plan something delicious together! 💕
+                        </div>
+                        <div class="chat-suggestions">
+                            <button type="button" class="suggestion-chip" onclick="sendQuickReply('Hi Anna! Can I please see your cake catalogue and signature designs?')">
+                                📖 Browse Cake Catalogue
+                            </button>
+                            <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('unicorn')">
+                                🦄 Unicorn Cake (18 pax)
+                            </button>
+                            <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('vintage')">
+                                🎂 Vintage Lambeth Heart
+                            </button>
+                        </div>
+                        <span class="bubble-time">Just now</span>
+                    </div>
+                </div>
+
+                <!-- Chat Input Area -->
+                <div class="chat-input-bar">
+                    <div class="image-preview-chip" id="image-preview-chip" style="display: none;">
+                        <img id="preview-thumb" src="" alt="Cake Reference">
+                        <span class="chip-name" id="preview-filename">cake-reference.jpg</span>
+                        <button type="button" class="remove-chip-btn" onclick="clearSelectedImage()">✕</button>
+                    </div>
+                    <div class="input-row">
+                        <div class="quick-img-buttons">
+                            <button type="button" class="icon-tool-btn" title="Pick Unicorn Cake Photo" onclick="selectPresetImage('unicorn')">🦄</button>
+                            <button type="button" class="icon-tool-btn" title="Pick Vintage Cake Photo" onclick="selectPresetImage('vintage')">🎂</button>
+                            <button type="button" class="icon-tool-btn" title="Pick Chocolate Cake Photo" onclick="selectPresetImage('chocolate')">🍫</button>
+                        </div>
+                        <input type="text" id="chat-input" placeholder="Type cake requirements (e.g., 2-tier chocolate truffle for 15 guests this Saturday)..." onkeydown="handleChatKey(event)">
+                        <button type="button" id="send-btn" class="send-action-btn" onclick="sendInquiry()">
+                            <span>Send</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- TAB 2: Kitchen Operations (Kanban & AG Grid Kitchen View)       -->
+        <!-- ============================================================== -->
+        <section class="tab-panel-view" id="pane-kitchen">
+            <div class="panel kitchen-panel">
+                <div class="panel-header">
                     <div class="panel-title">
-                        <span class="channel-icon">👩‍🍳</span>
+                        <span class="channel-icon">🍳</span>
                         <div>
-                            <h2>Chat with Anna (Baker & Owner)</h2>
-                            <p class="subtitle">Direct WhatsApp / Instagram DM • Sweet Creations</p>
+                            <h2>Kitchen Production Operations</h2>
+                            <p class="subtitle">Real-time Order State & Recipes • Auto-synced with PayPal Webhooks</p>
                         </div>
                     </div>
-                    <button type="button" class="header-catalogue-btn" onclick="openCatalogueModal()">
-                        <span>📖</span>
-                        <span>Catalogue</span>
-                    </button>
-                </div>
-                <div class="preset-dropdown-wrap">
-                    <label for="preset-select" class="sr-only">Load Sample Inquiries</label>
-                    <select id="preset-select" onchange="loadPresetInquiry()">
-                        <option value="">⚡ Load Sample Inquiries...</option>
-                        <option value="unicorn">1. Unicorn 2-Tier (18 pax) with custom fondant</option>
-                        <option value="vintage">2. Vintage Heart Lambeth Piping (10 pax) Eggless</option>
-                        <option value="chocolate">3. Belgian Dark Chocolate Celebration (25 pax)</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Chat Message Window -->
-            <div class="chat-viewport" id="chat-viewport">
-                <!-- Direct merchant divider -->
-                <div class="chat-date-divider">Today • Direct Conversation with Anna</div>
-
-                <!-- Initial Baker welcome -->
-                <div class="chat-bubble incoming">
-                    <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
-                    <div class="bubble-text">
-                        Hi there! 👋 I'm <strong>Anna</strong>, owner and head cake artist at Sweet Creations. Tell me about your celebration or send a photo of what you have in mind—flavor cravings, guest count, and your date—and let's plan something delicious together! 💕
+                    <div class="kitchen-header-actions">
+                        <div class="view-subswitcher">
+                            <button type="button" class="subswitch-btn active" id="subswitch-kanban" onclick="switchKitchenSubView('kanban')">
+                                <span>📋 Kanban Board</span>
+                            </button>
+                            <button type="button" class="subswitch-btn" id="subswitch-grid" onclick="switchKitchenSubView('grid')">
+                                <span>📊 AG Grid Table</span>
+                            </button>
+                        </div>
+                        <div class="kanban-metrics">
+                            <div class="metric-badge">
+                                <span class="metric-label">Active Orders</span>
+                                <span class="metric-value" id="active-orders-count">2</span>
+                            </div>
+                            <div class="metric-badge highlight">
+                                <span class="metric-label">Today's Paid</span>
+                                <span class="metric-value" id="paid-total-value">$184.00</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="chat-suggestions">
-                        <button type="button" class="suggestion-chip" onclick="sendQuickReply('Hi Anna! Can I please see your cake catalogue and signature designs?')">
-                            📖 Browse Cake Catalogue
-                        </button>
-                        <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('unicorn')">
-                            🦄 Unicorn Cake (18 pax)
-                        </button>
-                        <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('vintage')">
-                            🎂 Vintage Lambeth Heart
-                        </button>
-                    </div>
-                    <span class="bubble-time">Just now</span>
                 </div>
-            </div>
 
-            <!-- Chat Input Area -->
-            <div class="chat-input-bar">
-                <div class="image-preview-chip" id="image-preview-chip" style="display: none;">
-                    <img id="preview-thumb" src="" alt="Cake Reference">
-                    <span class="chip-name" id="preview-filename">cake-reference.jpg</span>
-                    <button type="button" class="remove-chip-btn" onclick="clearSelectedImage()">✕</button>
-                </div>
-                <div class="input-row">
-                    <div class="quick-img-buttons">
-                        <button type="button" class="icon-tool-btn" title="Pick Unicorn Cake Photo" onclick="selectPresetImage('unicorn')">🦄</button>
-                        <button type="button" class="icon-tool-btn" title="Pick Vintage Cake Photo" onclick="selectPresetImage('vintage')">🎂</button>
-                        <button type="button" class="icon-tool-btn" title="Pick Chocolate Cake Photo" onclick="selectPresetImage('chocolate')">🍫</button>
+                <!-- Sub-View 1: Kanban Board View -->
+                <div class="kitchen-subview active" id="kitchen-kanban-view">
+                    <div class="kanban-board">
+                        <!-- Column 1: Awaiting PayPal Payment -->
+                        <div class="kanban-column" id="col-pending">
+                            <div class="column-header">
+                                <div class="col-title-group">
+                                    <span class="col-indicator pending"></span>
+                                    <h3>Payment Pending</h3>
+                                </div>
+                                <span class="ticket-counter" id="count-pending">0</span>
+                            </div>
+                            <div class="tickets-container" id="tickets-pending"></div>
+                        </div>
+
+                        <!-- Column 2: Confirmed / In Queue -->
+                        <div class="kanban-column" id="col-confirmed">
+                            <div class="column-header">
+                                <div class="col-title-group">
+                                    <span class="col-indicator confirmed"></span>
+                                    <h3>Paid • In Queue</h3>
+                                </div>
+                                <span class="ticket-counter" id="count-confirmed">0</span>
+                            </div>
+                            <div class="tickets-container" id="tickets-confirmed"></div>
+                        </div>
+
+                        <!-- Column 3: In the Oven -->
+                        <div class="kanban-column" id="col-baking">
+                            <div class="column-header">
+                                <div class="col-title-group">
+                                    <span class="col-indicator baking"></span>
+                                    <h3>In the Oven</h3>
+                                </div>
+                                <span class="ticket-counter" id="count-baking">0</span>
+                            </div>
+                            <div class="tickets-container" id="tickets-baking"></div>
+                        </div>
+
+                        <!-- Column 4: Ready for Pickup -->
+                        <div class="kanban-column" id="col-ready">
+                            <div class="column-header">
+                                <div class="col-title-group">
+                                    <span class="col-indicator ready"></span>
+                                    <h3>Ready for Pickup</h3>
+                                </div>
+                                <span class="ticket-counter" id="count-ready">0</span>
+                            </div>
+                            <div class="tickets-container" id="tickets-ready"></div>
+                        </div>
                     </div>
-                    <input type="text" id="chat-input" placeholder="Type cake requirements (e.g., 2-tier chocolate truffle for 15 guests this Saturday)..." onkeydown="handleChatKey(event)">
-                    <button type="button" id="send-btn" class="send-action-btn" onclick="sendInquiry()">
-                        <span>Send</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-                    </button>
+                </div>
+
+                <!-- Sub-View 2: AG Grid Kitchen Operations View -->
+                <div class="kitchen-subview" id="kitchen-grid-view" style="display: none;">
+                    <div class="ag-grid-wrapper">
+                        <div id="kitchenGrid" class="ag-theme-quartz-dark" style="height: 600px; width: 100%;"></div>
+                    </div>
                 </div>
             </div>
         </section>
 
-        <!-- RIGHT PANEL: Live Baker Kitchen Kanban & PayPal Reconciler -->
-        <section class="panel kanban-panel">
-            <div class="panel-header">
-                <div class="panel-title">
-                    <span class="channel-icon">🍳</span>
-                    <div>
-                        <h2>Kitchen Production Kanban</h2>
-                        <p class="subtitle">Auto-synced via PayPal Webhooks (Live SSE Stream)</p>
-                    </div>
-                </div>
-                <div class="kanban-metrics">
-                    <div class="metric-badge">
-                        <span class="metric-label">Active Orders</span>
-                        <span class="metric-value" id="active-orders-count">2</span>
-                    </div>
-                    <div class="metric-badge highlight">
-                        <span class="metric-label">Today's Paid</span>
-                        <span class="metric-value" id="paid-total-value">$184.00</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Kanban Columns Container -->
-            <div class="kanban-board">
+        <!-- ============================================================== -->
+        <!-- TAB 3: Financial Hub & PayPal Ledger (AG Grid Powered)         -->
+        <!-- ============================================================== -->
+        <section class="tab-panel-view" id="pane-finance">
+            <div class="panel finance-panel">
                 
-                <!-- Column 1: Awaiting PayPal Payment -->
-                <div class="kanban-column" id="col-pending">
-                    <div class="column-header">
-                        <div class="col-title-group">
-                            <span class="col-indicator pending"></span>
-                            <h3>Payment Pending</h3>
+                <!-- Financial Header -->
+                <div class="panel-header finance-header">
+                    <div class="panel-title">
+                        <span class="channel-icon">📊</span>
+                        <div>
+                            <h2>PayPal Financial Ledger & Business Hub</h2>
+                            <p class="subtitle">Official PayPal Invoicing v2 Settlement • Transparent Fee Auditing & Net Payout</p>
                         </div>
-                        <span class="ticket-counter" id="count-pending">0</span>
                     </div>
-                    <div class="tickets-container" id="tickets-pending">
-                        <!-- Dynamic Order Cards -->
+                    <div class="finance-header-actions">
+                        <button type="button" class="export-csv-action-btn" onclick="exportFinanceCsv()">
+                            <span class="export-icon">📥</span>
+                            <span>Export for Tax / Accountant (CSV)</span>
+                        </button>
                     </div>
                 </div>
 
-                <!-- Column 2: Confirmed / In Queue -->
-                <div class="kanban-column" id="col-confirmed">
-                    <div class="column-header">
-                        <div class="col-title-group">
-                            <span class="col-indicator confirmed"></span>
-                            <h3>Paid • In Queue</h3>
+                <!-- Financial KPI Summary Cards (Top Row) -->
+                <div class="financial-kpi-grid">
+                    <div class="kpi-card gross-card">
+                        <div class="kpi-top">
+                            <span class="kpi-label">Gross Revenue Settled</span>
+                            <span class="kpi-badge-icon">💵</span>
                         </div>
-                        <span class="ticket-counter" id="count-confirmed">0</span>
+                        <div class="kpi-value" id="kpi-gross-revenue">$0.00</div>
+                        <div class="kpi-subtext" id="kpi-gross-orders">0 Settled Orders</div>
                     </div>
-                    <div class="tickets-container" id="tickets-confirmed">
-                        <!-- Dynamic Order Cards -->
+
+                    <div class="kpi-card fees-card">
+                        <div class="kpi-top">
+                            <span class="kpi-label">PayPal Processing Fees</span>
+                            <span class="kpi-badge-icon">🅿️</span>
+                        </div>
+                        <div class="kpi-value fee" id="kpi-paypal-fees">-$0.00</div>
+                        <div class="kpi-subtext">2.99% + $0.49 per captured order</div>
+                    </div>
+
+                    <div class="kpi-card net-card">
+                        <div class="kpi-top">
+                            <span class="kpi-label">Net Baker Take-Home</span>
+                            <span class="kpi-badge-icon">💰</span>
+                        </div>
+                        <div class="kpi-value net" id="kpi-net-payout">$0.00</div>
+                        <div class="kpi-subtext" id="kpi-net-margin">Margin: 96.4% of Gross</div>
+                    </div>
+
+                    <div class="kpi-card settlement-card">
+                        <div class="kpi-top">
+                            <span class="kpi-label">Settlement Rate</span>
+                            <span class="kpi-badge-icon">🧾</span>
+                        </div>
+                        <div class="kpi-value" id="kpi-settlement-rate">100%</div>
+                        <div class="kpi-subtext" id="kpi-settlement-detail">0 Paid • 0 Pending</div>
                     </div>
                 </div>
 
-                <!-- Column 3: In the Oven -->
-                <div class="kanban-column" id="col-baking">
-                    <div class="column-header">
-                        <div class="col-title-group">
-                            <span class="col-indicator baking"></span>
-                            <h3>In the Oven</h3>
-                        </div>
-                        <span class="ticket-counter" id="count-baking">0</span>
+                <!-- AG Grid Interactive Toolbar -->
+                <div class="finance-grid-toolbar">
+                    <div class="search-filter-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="finance-search-input" placeholder="Search customer name, order #, or PayPal invoice ID..." oninput="onFinanceSearch(this.value)">
+                        <button type="button" class="clear-search-btn" onclick="clearFinanceSearch()">✕</button>
                     </div>
-                    <div class="tickets-container" id="tickets-baking">
-                        <!-- Dynamic Order Cards -->
+
+                    <div class="status-filter-pills">
+                        <button type="button" class="status-chip active" id="fchip-all" onclick="filterFinanceStatus('ALL')">All Orders</button>
+                        <button type="button" class="status-chip" id="fchip-paid" onclick="filterFinanceStatus('PAID')">Paid Only ✅</button>
+                        <button type="button" class="status-chip" id="fchip-pending" onclick="filterFinanceStatus('PENDING')">Pending Payment ⏳</button>
                     </div>
                 </div>
 
-                <!-- Column 4: Ready for Pickup -->
-                <div class="kanban-column" id="col-ready">
-                    <div class="column-header">
-                        <div class="col-title-group">
-                            <span class="col-indicator ready"></span>
-                            <h3>Ready for Pickup</h3>
-                        </div>
-                        <span class="ticket-counter" id="count-ready">0</span>
-                    </div>
-                    <div class="tickets-container" id="tickets-ready">
-                        <!-- Dynamic Order Cards -->
-                    </div>
+                <!-- AG Grid Table Container -->
+                <div class="ag-grid-finance-container">
+                    <div id="financeGrid" class="ag-theme-quartz-dark" style="height: 520px; width: 100%;"></div>
                 </div>
 
             </div>
         </section>
+
     </main>
 
     <!-- Modal for Customer PayPal Checkout & Guest Card Checkout -->
@@ -353,9 +485,7 @@
                 <button class="modal-close-btn" onclick="closeCatalogueModal()">✕</button>
             </div>
             <div class="modal-body catalogue-modal-body">
-                <div class="catalogue-grid" id="catalogue-modal-grid">
-                    <!-- Dynamic Catalogue Cards from PayPal API -->
-                </div>
+                <div class="catalogue-grid" id="catalogue-modal-grid"></div>
             </div>
             <div class="modal-footer catalogue-modal-footer">
                 <span>✨ Tap any cake to customize with Anna in chat!</span>

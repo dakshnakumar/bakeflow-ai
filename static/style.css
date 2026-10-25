@@ -2036,3 +2036,639 @@ body {
 .tx-error {
     color: #f87171;
 }
+
+/* ==========================================================================
+   5. THREE-TAB ARCHITECTURE & AG GRID EXECUTIVE DASHBOARD
+   ========================================================================== */
+
+/* Global Navigation Bar */
+.app-navigation-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 24px;
+    background: #0f1422;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-tabs-container {
+    display: flex;
+    gap: 8px;
+}
+
+.main-nav-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.main-nav-tab:hover {
+    color: #f8fafc;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.main-nav-tab.active {
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+}
+
+.main-nav-tab.finance-tab.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.tab-icon {
+    font-size: 15px;
+}
+
+.tab-pill-badge {
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.ag-grid-tag {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.nav-extra-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.view-mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.view-mode-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.view-mode-toggle.active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #38bdf8;
+}
+
+/* Main Workspace Wrapper & Tab Panels */
+.main-workspace-wrapper {
+    height: calc(100vh - 120px);
+    overflow: hidden;
+    position: relative;
+    background: #090d16;
+}
+
+.tab-panel-view {
+    display: none;
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.tab-panel-view.active {
+    display: block;
+}
+
+/* Split View Mode Option */
+.main-workspace-wrapper.split-layout-mode {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 1px;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.main-workspace-wrapper.split-layout-mode .tab-panel-view#pane-chat {
+    display: block !important;
+}
+
+.main-workspace-wrapper.split-layout-mode .tab-panel-view#pane-kitchen.active,
+.main-workspace-wrapper.split-layout-mode .tab-panel-view#pane-finance.active {
+    display: block !important;
+}
+
+/* Kitchen Operations View Switcher */
+.kitchen-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.view-subswitcher {
+    display: flex;
+    background: #0b0f1a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.subswitch-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+.subswitch-btn:hover {
+    color: #ffffff;
+}
+
+.subswitch-btn.active {
+    background: #1e293b;
+    color: #38bdf8;
+}
+
+.kitchen-subview {
+    height: calc(100% - 70px);
+}
+
+/* ==========================================
+   FINANCIAL HUB & KPI SUMMARY CARDS
+   ========================================== */
+.finance-panel {
+    padding: 20px 24px;
+    height: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.finance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 4px;
+}
+
+.export-csv-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    border: none;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.export-csv-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+}
+
+/* 4-Column KPI Metric Cards */
+.financial-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+}
+
+.kpi-card {
+    background: #0f1523;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.kpi-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+    transform: translateY(-2px);
+}
+
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+}
+
+.kpi-card.gross-card::before { background: #38bdf8; }
+.kpi-card.fees-card::before { background: #f43f5e; }
+.kpi-card.net-card::before { background: #10b981; }
+.kpi-card.settlement-card::before { background: #fbbf24; }
+
+.kpi-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kpi-badge-icon {
+    font-size: 16px;
+}
+
+.kpi-value {
+    font-size: 26px;
+    font-weight: 800;
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.5px;
+}
+
+.kpi-value.fee {
+    color: #fb7185;
+}
+
+.kpi-value.net {
+    color: #34d399;
+}
+
+.kpi-subtext {
+    font-size: 11px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* AG Grid Toolbar */
+.finance-grid-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: #0d121f;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 14px;
+    border-radius: 8px;
+}
+
+.search-filter-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #141b2d;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 12px;
+    width: 360px;
+}
+
+.search-filter-box input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f8fafc;
+    font-size: 13px;
+    width: 100%;
+    font-family: inherit;
+}
+
+.search-filter-box input::placeholder {
+    color: #64748b;
+}
+
+.clear-search-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.clear-search-btn:hover {
+    color: #f8fafc;
+}
+
+.status-filter-pills {
+    display: flex;
+    gap: 8px;
+}
+
+.status-chip {
+    background: #141b2d;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+
+.status-chip:hover {
+    color: #f8fafc;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.status-chip.active {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: #34d399;
+}
+
+/* AG Grid Container & Theming */
+.ag-grid-finance-container,
+.ag-grid-wrapper {
+    flex: 1;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #0b0f1a;
+}
+
+/* AG Grid Dark Theme Overrides */
+.ag-theme-quartz-dark {
+    --ag-background-color: #0c101d;
+    --ag-header-background-color: #111728;
+    --ag-odd-row-background-color: #0e1322;
+    --ag-row-border-color: rgba(255, 255, 255, 0.05);
+    --ag-header-column-separator-color: rgba(255, 255, 255, 0.08);
+    --ag-header-foreground-color: #cbd5e1;
+    --ag-data-color: #f8fafc;
+    --ag-font-family: 'Plus Jakarta Sans', sans-serif;
+    --ag-font-size: 13px;
+    --ag-selected-row-background-color: rgba(99, 102, 241, 0.12);
+}
+
+/* Custom AG Grid Cell Components */
+.ag-order-id-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.12);
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.ag-customer-cell {
+    font-weight: 600;
+    color: #f1f5f9;
+}
+
+.ag-method-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.ag-method-badge.paypal {
+    background: rgba(0, 112, 224, 0.18);
+    color: #38bdf8;
+    border: 1px solid rgba(0, 112, 224, 0.35);
+}
+
+.pp-p-tiny {
+    font-weight: 900;
+    font-style: italic;
+    color: #0070e0;
+}
+
+.ag-method-badge.card {
+    background: rgba(168, 85, 247, 0.18);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.ag-amount-gross {
+    font-weight: 700;
+    color: #f8fafc;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ag-amount-fee {
+    font-weight: 700;
+    color: #fb7185;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ag-amount-net {
+    font-weight: 800;
+    color: #34d399;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ag-status-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 12px;
+}
+
+.ag-status-pill.paid {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.ag-status-pill.pending {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.ag-inv-code {
+    font-family: monospace;
+    font-size: 11px;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+
+.ag-cap-code {
+    font-family: monospace;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.ag-paypal-receipt-btn {
+    font-size: 11px;
+    font-weight: 700;
+    color: #38bdf8;
+    text-decoration: none;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 4px 10px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    display: inline-block;
+}
+
+.ag-paypal-receipt-btn:hover {
+    background: #38bdf8;
+    color: #0c0f17;
+}
+
+.ag-dash-na {
+    color: #475569;
+}
+
+.ag-muted-text {
+    font-size: 11px;
+    color: #64748b;
+}
+
+/* Pinned Bottom Row Summary Styling */
+.ag-pinned-label {
+    font-size: 13px;
+    font-weight: 800;
+    color: #38bdf8;
+    letter-spacing: 0.5px;
+}
+
+.ag-pinned-meta {
+    font-size: 12px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.ag-pinned-gross {
+    font-size: 14px;
+    font-weight: 800;
+    color: #ffffff;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ag-pinned-fee {
+    font-size: 14px;
+    font-weight: 800;
+    color: #fb7185;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ag-pinned-net {
+    font-size: 15px;
+    font-weight: 900;
+    color: #34d399;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ag-pinned-pill {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* AG Grid Kitchen Action Buttons */
+.ag-action-btn {
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+}
+
+.ag-action-btn.bake {
+    background: #f59e0b;
+    color: #0c0f17;
+}
+
+.ag-action-btn.bake:hover {
+    background: #d97706;
+}
+
+.ag-action-btn.ready {
+    background: #3b82f6;
+    color: #ffffff;
+}
+
+.ag-action-btn.ready:hover {
+    background: #2563eb;
+}
+
+.ag-action-btn.complete {
+    background: #10b981;
+    color: #ffffff;
+}
+
+.ag-action-btn.complete:hover {
+    background: #059669;
+}
+
+.ag-kitchen-status-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+
+.ag-kitchen-status-pill.pending { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+.ag-kitchen-status-pill.confirmed { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.ag-kitchen-status-pill.baking { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
+.ag-kitchen-status-pill.ready { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+.ag-kitchen-status-pill.completed { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
+
+.ag-dietary-tag {
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
