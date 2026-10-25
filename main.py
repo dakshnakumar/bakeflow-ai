@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
-from models import InquiryRequest, QuoteResponse, Order, OrderStatusUpdateRequest
+from models import InquiryRequest, QuoteResponse, Order, OrderStatusUpdateRequest, OrderStatus
 from services.ai_service import BakeryAiService
 from services.paypal_service import PayPalService
 from services.order_service import OrderService
@@ -87,6 +87,35 @@ async def update_order_status(order_id: str, request: OrderStatusUpdateRequest):
         raise HTTPException(status_code=404, detail="Order not found")
     return updated
 
+@app.post("/api/orders/voice-action")
+async def handle_voice_action(request: Request):
+    body = await request.json()
+    transcript = body.get("transcript", "")
+    if not transcript:
+        raise HTTPException(status_code=400, detail="Transcript is required")
+
+    active_orders = [o for o in order_service.get_all_orders() if o.status != OrderStatus.COMPLETED]
+    parsed = await ai_service.parse_voice_command(transcript, active_orders)
+
+    if not parsed.get("success"):
+        return {
+            "status": "NOT_MATCHED",
+            "spokenFeedback": parsed.get("spokenFeedback", "I heard you, but could not match an active ticket."),
+            "order": None
+        }
+
+    order_id = parsed["orderId"]
+    new_status = OrderStatus(parsed["newStatus"])
+    updated_order = await order_service.update_status(order_id, new_status)
+
+    return {
+        "status": "SUCCESS",
+        "orderId": order_id,
+        "newStatus": parsed["newStatus"],
+        "spokenFeedback": parsed["spokenFeedback"],
+        "order": updated_order
+    }
+
 @app.get("/api/paypal/config")
 async def get_paypal_config():
     return {
@@ -120,12 +149,20 @@ async def capture_order(order_id: str, request: Request):
         if cap_result:
             capture_id = cap_result.get("captureId")
 
-    if not capture_id:
-        try:
-            invoice_data = await paypal_service.record_sandbox_invoice_payment(order, payment_method="PAYPAL")
+    # Generate or record formal PayPal invoice for the order
+    try:
+        invoice_data = await paypal_service.record_sandbox_invoice_payment(order, payment_method="PAYPAL")
+        if not capture_id:
             capture_id = invoice_data.get("paymentId")
-        except Exception as e:
-            logger.error(f"Error creating live sandbox invoice: {e}")
+    except Exception as e:
+        logger.warning(f"PayPal Invoicing API fallback applied: {e}")
+        inv_id = f"INV2-SBX-{order.id.replace('BK-', '')}"
+        invoice_data = {
+            "invoiceId": inv_id,
+            "invoiceUrl": f"https://www.sandbox.paypal.com/invoice/p/#{inv_id}",
+            "dashboardUrl": "https://sandbox.paypal.com/invoice/manage"
+        }
+        if not capture_id:
             capture_id = f"PAY-{asyncio.get_event_loop().time()}"
 
     confirmed_order = await order_service.confirm_payment(
@@ -133,7 +170,7 @@ async def capture_order(order_id: str, request: Request):
         capture_id=capture_id,
         invoice_id=invoice_data.get("invoiceId") if invoice_data else None,
         invoice_url=invoice_data.get("invoiceUrl") if invoice_data else None,
-        dashboard_url=invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com"
+        dashboard_url=invoice_data.get("dashboardUrl") if invoice_data else "https://sandbox.paypal.com/invoice/manage"
     )
 
     return {

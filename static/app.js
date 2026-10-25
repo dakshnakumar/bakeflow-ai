@@ -1,20 +1,21 @@
+let currentChatCustomerName = null;
 // BakeFlow AI - Frontend Orchestration
 
 const PRESET_INQUIRIES = {
     unicorn: {
-        text: "Hi! I'd like to order a 2-tier magical unicorn cake with gold horn and pastel rosettes for 18 guests this Saturday. Can you make it eggless?",
+        text: "Hi Anna, I'm Emma! I'd like to order a 2 kg magical unicorn cake with pastel rosettes for this Saturday. Can you make it eggless, with 'Happy 7th Lily' written on it?",
         image: "https://images.unsplash.com/photo-1535141192574-5d4897c13136?w=500&auto=format&fit=crop",
-        name: "Jessica Taylor"
+        name: "Emma Watson"
     },
     vintage: {
-        text: "Looking for an aesthetic vintage Lambeth heart piping cake in cherry red for 10 people tomorrow. Message: 'Forever 21'",
+        text: "Hi Anna, I'm Sarah Jenkins. I need a 1.5 kg vintage Lambeth heart piping cake in cherry red for this Friday. Could you write 'Forever 21' on top?",
         image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop",
-        name: "Chloe Bennett"
+        name: "Sarah Jenkins"
     },
     chocolate: {
-        text: "Need a decadent Belgian dark chocolate truffle celebration cake for 25 people with chocolate drip and berries this weekend.",
+        text: "Hi Anna, I'm David Miller! Looking for a 1 kg Belgian dark chocolate truffle cake for Oct 30th with 'Happy Birthday Dad' piped on it.",
         image: "https://images.unsplash.com/photo-1606890737304-57a1ca8a5b62?w=500&auto=format&fit=crop",
-        name: "Marcus Vance"
+        name: "David Miller"
     }
 };
 
@@ -50,6 +51,7 @@ function loadPresetInquiryByKey(key) {
     if (select) select.value = key;
 
     const preset = PRESET_INQUIRIES[key];
+    currentChatCustomerName = preset.name;
     document.getElementById('chat-input').value = preset.text;
     selectPresetImage(key);
 }
@@ -104,8 +106,8 @@ async function sendInquiry(overrideText = null) {
     });
 
     const payload = {
-        customerName: "Jessica Taylor",
-        customerPhone: "+1 (408) 555-0199",
+        customerName: currentChatCustomerName || null,
+        customerPhone: null,
         message: text,
         imageUrl: imgToAttach,
         history: chatHistory
@@ -182,9 +184,10 @@ function renderMerchantResponse(quote) {
                 </div>
                 <div class="quote-details">
                     <div>Flavor: <strong>${escapeHtml(spec.flavor)}</strong></div>
-                    <div>Size: <strong>${spec.servings} guests (${spec.tiers} tier)</strong></div>
+                    <div>Weight: <strong>${spec.weightKg ? spec.weightKg + ' kg' : '1.0 kg'} (${spec.tiers} tier)</strong></div>
                     <div>Dietary: <strong>${escapeHtml(spec.dietaryPreferences)}</strong></div>
                     <div>Pickup Date: <strong>${spec.pickupDate}</strong></div>
+                    ${spec.customMessage ? `<div>Inscription: <strong>"${escapeHtml(spec.customMessage)}"</strong></div>` : ''}
                 </div>
                 <button class="paypal-action-button" onclick="openPayPalCheckout('${quote.orderId}', ${spec.totalPrice}, '${escapeHtml(spec.theme)}', '${quote.paypalOrderId || ''}', '${quote.paypalApprovalUrl || ''}')">
                     <span>Pay with</span>
@@ -622,6 +625,7 @@ function initSseKitchenStream() {
         upsertTicket(order, true);
         updateFinancialDashboard(cachedOrders);
         updateKitchenGrid(cachedOrders);
+        notifyCustomerOfStatusChange(order);
     });
 
     eventSource.onerror = (err) => {
@@ -664,7 +668,10 @@ function upsertTicket(order, flash) {
     if (order.status === 'CONFIRMED') targetColId = 'tickets-confirmed';
     else if (order.status === 'BAKING') targetColId = 'tickets-baking';
     else if (order.status === 'READY_FOR_PICKUP') targetColId = 'tickets-ready';
-    else if (order.status === 'COMPLETED') return; // Completed orders archived
+    else if (order.status === 'COMPLETED') {
+        refreshColumnCounters();
+        return; // Completed orders archived
+    }
 
     const targetContainer = document.getElementById(targetColId);
     if (!targetContainer) return;
@@ -694,7 +701,8 @@ function upsertTicket(order, flash) {
             <div class="card-cake-specs">
                 <span class="spec-theme">${escapeHtml(spec.theme)}</span>
                 <span class="spec-flavor">${escapeHtml(spec.flavor)}</span>
-                <span class="spec-meta">${spec.servings} Servings • ${spec.tiers} Tier(s) • ${spec.dietaryPreferences}</span>
+                <span class="spec-meta">⚖️ ${spec.weightKg ? spec.weightKg + ' kg' : '1.0 kg'} • ${spec.tiers} Tier(s) • ${spec.dietaryPreferences}</span>
+                ${spec.customMessage ? `<span class="spec-custom-msg" style="font-size: 11px; color: #f59e0b; display: block; margin-top: 3px;">✍️ "${escapeHtml(spec.customMessage)}"</span>` : ''}
             </div>
         </div>
         <div class="card-pickup-date">
@@ -747,6 +755,8 @@ async function updateOrderStatus(orderId, newStatus) {
         if (res.ok) {
             const updated = await res.json();
             upsertTicket(updated, true);
+            notifyCustomerOfStatusChange(updated);
+            refreshColumnCounters();
         } else if (res.status === 404) {
             console.warn(`Order #${orderId} was not found on the backend. Refreshing orders...`);
             loadAllOrders();
@@ -1020,11 +1030,9 @@ function initFinanceGrid() {
             width: 160,
             cellRenderer: params => {
                 if (params.node && params.node.rowPinned) return '';
-                const invUrl = params.data.paypalInvoiceUrl;
-                const invId = params.data.paypalInvoiceId;
-                if (invUrl || invId) {
-                    const url = invUrl || `https://www.sandbox.paypal.com/invoice/p/#${invId}`;
-                    return `<a href="${url}" target="_blank" class="ag-paypal-receipt-btn">View Receipt ↗</a>`;
+                const isPaid = params.data.status !== 'PAYMENT_PENDING' && params.data.status !== 'QUOTED';
+                if (isPaid || params.data.paypalInvoiceId) {
+                    return `<button type="button" class="ag-paypal-receipt-btn" onclick="openInvoiceModal('${params.data.id}')">📄 View Invoice ↗</button>`;
                 }
                 return `<span class="ag-dash-na">—</span>`;
             }
@@ -1085,7 +1093,7 @@ function initKitchenGrid() {
             valueGetter: params => {
                 const s = params.data.cakeSpec;
                 if (!s) return 'Artisan Cake';
-                return `${s.flavor} (${s.servings}p • ${s.tiers}T)`;
+                return `${s.flavor} (${s.weightKg ? s.weightKg + 'kg' : '1kg'} • ${s.tiers}T)`;
             }
         },
         {
@@ -1289,6 +1297,7 @@ function switchKitchenSubView(view) {
     }
 }
 
+
 function toggleSplitMode() {
     isSplitMode = !isSplitMode;
     const wrapper = document.getElementById('main-workspace-wrapper');
@@ -1345,4 +1354,274 @@ async function clearPendingOrders() {
     } catch (e) {
         console.error("Failed to clear pending orders:", e);
     }
+}
+
+// ==========================================
+// 5. HANDS-FREE KITCHEN VOICE ASSISTANT
+// ==========================================
+let isVoiceListening = false;
+let speechRecognitionInstance = null;
+
+function toggleKitchenVoiceAssistant() {
+    if (isVoiceListening) {
+        stopKitchenVoiceAssistant();
+    } else {
+        startKitchenVoiceAssistant();
+    }
+}
+
+function startKitchenVoiceAssistant() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        alert("Web Speech API is not supported in this browser. Please use Google Chrome or Edge, or use the quick test command chips!");
+        return;
+    }
+
+    try {
+        speechRecognitionInstance = new SpeechRecognition();
+        speechRecognitionInstance.continuous = false;
+        speechRecognitionInstance.interimResults = false;
+        speechRecognitionInstance.lang = 'en-US';
+
+        const btn = document.getElementById('voice-assistant-btn');
+        const label = document.getElementById('voice-btn-label');
+        const pulse = document.getElementById('voice-pulse-ring');
+        const hint = document.getElementById('voice-status-hint');
+
+        btn.classList.add('listening');
+        label.textContent = 'Listening...';
+        pulse.style.display = 'block';
+        hint.innerHTML = '<span style="color: #38bdf8; font-weight: 700;">Listening to kitchen speech...</span> Speak your command now!';
+
+        isVoiceListening = true;
+
+        speechRecognitionInstance.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            console.log("Voice Transcript Heard:", transcript);
+            stopKitchenVoiceAssistant();
+            executeVoiceAction(transcript);
+        };
+
+        speechRecognitionInstance.onerror = function(event) {
+            console.warn("Speech recognition error:", event.error);
+            stopKitchenVoiceAssistant();
+            hint.textContent = `Mic error: ${event.error}. You can also tap the test command chips!`;
+        };
+
+        speechRecognitionInstance.onend = function() {
+            stopKitchenVoiceAssistant();
+        };
+
+        speechRecognitionInstance.start();
+    } catch (e) {
+        console.error("Failed to start speech recognition:", e);
+        stopKitchenVoiceAssistant();
+    }
+}
+
+function stopKitchenVoiceAssistant() {
+    isVoiceListening = false;
+    const btn = document.getElementById('voice-assistant-btn');
+    const label = document.getElementById('voice-btn-label');
+    const pulse = document.getElementById('voice-pulse-ring');
+
+    if (btn) btn.classList.remove('listening');
+    if (label) label.textContent = 'Tap to Speak';
+    if (pulse) pulse.style.display = 'none';
+
+    if (speechRecognitionInstance) {
+        try {
+            speechRecognitionInstance.stop();
+        } catch (e) {}
+    }
+}
+
+async function executeVoiceAction(transcript) {
+    const hint = document.getElementById('voice-status-hint');
+    if (hint) {
+        hint.innerHTML = `Heard: "<em>${escapeHtml(transcript)}</em>" &bull; ⏳ Parsing intent with AI...`;
+    }
+
+    try {
+        const res = await fetch('/api/orders/voice-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ transcript: transcript })
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'SUCCESS' && data.order) {
+                // Flash ticket on Kanban
+                upsertTicket(data.order, true);
+                if (hint) {
+                    hint.innerHTML = `✅ <strong style="color: #34d399;">${escapeHtml(data.spokenFeedback)}</strong>`;
+                }
+                playPopSound();
+                speakAnnaVoiceConfirmation(data.spokenFeedback);
+                loadAllOrders(); // refresh grids
+            } else {
+                if (hint) {
+                    hint.innerHTML = `⚠️ <span style="color: #fbbf24;">${escapeHtml(data.spokenFeedback || "Could not find matching order.")}</span>`;
+                }
+                speakAnnaVoiceConfirmation(data.spokenFeedback || "I could not find a matching order.");
+            }
+        }
+    } catch (e) {
+        console.error("Voice action failed:", e);
+        if (hint) hint.textContent = "Error communicating with voice action server.";
+    }
+}
+
+function simulateVoiceCommand(transcript) {
+    executeVoiceAction(transcript);
+}
+
+function speakAnnaVoiceConfirmation(text) {
+    if ('speechSynthesis' in window && text) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.05;
+        utterance.pitch = 1.1;
+        utterance.lang = 'en-US';
+        window.speechSynthesis.speak(utterance);
+    }
+}
+
+const notifiedOrderTransitions = new Set();
+function notifyCustomerOfStatusChange(order) {
+    if (!order || !order.id || !order.status) return;
+    const transitionKey = order.id + '-' + order.status;
+    if (notifiedOrderTransitions.has(transitionKey)) {
+        return;
+    }
+    notifiedOrderTransitions.add(transitionKey);
+
+    let message = null;
+    const name = order.customerName || "Customer";
+    if (order.status === "BAKING") {
+        message = "Update on Order #" + order.id + " (" + name + "): Your cake is now in the oven! 🎂🔥 Anna has started baking it fresh.";
+    } else if (order.status === "READY_FOR_PICKUP") {
+        message = "Update on Order #" + order.id + " (" + name + "): Hooray! Your cake is decorated, boxed, and ready for pickup! 📦✨";
+    } else if (order.status === "COMPLETED") {
+        message = "Update on Order #" + order.id + " (" + name + "): Thank you so much! Your order has been marked as picked up. Enjoy your celebration! 🎉🍰";
+    }
+    if (message) {
+        renderIncomingMessage(message);
+    }
+}
+
+
+// ==========================================
+// 6. OFFICIAL PAYPAL DIGITAL INVOICE VIEWER
+// ==========================================
+let isAutoInvoicingActive = true;
+
+function toggleAutoInvoicing() {
+    isAutoInvoicingActive = !isAutoInvoicingActive;
+    const badge = document.getElementById('auto-invoicing-badge');
+    const statusText = document.getElementById('auto-inv-status');
+    if (badge && statusText) {
+        if (isAutoInvoicingActive) {
+            badge.classList.add('active');
+            statusText.textContent = 'ON';
+            statusText.style.color = '#34d399';
+        } else {
+            badge.classList.remove('active');
+            statusText.textContent = 'OFF';
+            statusText.style.color = '#f87171';
+        }
+    }
+}
+
+function openInvoiceModal(orderId) {
+    const order = cachedOrders.find(o => o.id === orderId);
+    if (!order) {
+        alert("Order #" + orderId + " not found.");
+        return;
+    }
+
+    const spec = order.cakeSpec || {};
+    const total = Number(order.totalAmount || 0);
+    const fee = (total * 0.0299) + 0.49;
+    const net = Math.max(0, total - fee);
+
+    const isPaid = order.status !== 'PAYMENT_PENDING' && order.status !== 'QUOTED';
+    const invId = order.paypalInvoiceId || ('INV2-SBX-' + order.id.replace('BK-', ''));
+    const capId = order.paypalCaptureId || order.paypalOrderId || 'PAY-VERIFIED-SANDBOX';
+
+    // Populate Modal Elements
+    const numEl = document.getElementById('inv-modal-num');
+    const orderIdEl = document.getElementById('inv-modal-order-id');
+    const statusEl = document.getElementById('inv-modal-status');
+    const dateEl = document.getElementById('inv-modal-date');
+    const pickupEl = document.getElementById('inv-modal-pickup');
+    const customerEl = document.getElementById('inv-modal-customer');
+    const phoneEl = document.getElementById('inv-modal-phone');
+    const captureEl = document.getElementById('inv-modal-capture');
+
+    const themeEl = document.getElementById('inv-modal-theme');
+    const flavorEl = document.getElementById('inv-modal-flavor');
+    const msgEl = document.getElementById('inv-modal-msg');
+    const tiersEl = document.getElementById('inv-modal-tiers');
+    const dietaryEl = document.getElementById('inv-modal-dietary');
+    const weightEl = document.getElementById('inv-modal-weight');
+
+    const lineTotalEl = document.getElementById('inv-modal-line-total');
+    const subtotalEl = document.getElementById('inv-modal-subtotal');
+    const feeEl = document.getElementById('inv-modal-fee');
+    const netEl = document.getElementById('inv-modal-net');
+    const totalEl = document.getElementById('inv-modal-total');
+    const extLinkEl = document.getElementById('inv-modal-ext-link');
+
+    if (numEl) numEl.textContent = invId;
+    if (orderIdEl) orderIdEl.textContent = '#' + order.id;
+    if (statusEl) {
+        statusEl.className = 'inv-status-pill ' + (isPaid ? 'paid' : 'pending');
+        statusEl.textContent = isPaid ? 'PAID ✅' : 'PENDING PAYMENT ⏳';
+    }
+    if (dateEl) {
+        const d = new Date(order.createdAt || Date.now());
+        dateEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    if (pickupEl) pickupEl.textContent = spec.pickupDate || 'Scheduled';
+    if (customerEl) customerEl.textContent = order.customerName || 'Customer';
+    if (phoneEl) phoneEl.textContent = order.customerPhone || '+1 (408) 555-0199';
+    if (captureEl) captureEl.textContent = capId;
+
+    if (themeEl) themeEl.textContent = spec.theme || 'Custom Artisan Cake';
+    if (flavorEl) flavorEl.textContent = 'Flavor: ' + (spec.flavor || 'Signature Vanilla Bean');
+    if (msgEl) {
+        if (spec.customMessage && spec.customMessage.trim()) {
+            msgEl.textContent = '✍️ Inscription: "' + spec.customMessage + '"';
+            msgEl.style.display = 'block';
+        } else {
+            msgEl.style.display = 'none';
+        }
+    }
+    if (tiersEl) tiersEl.textContent = (spec.tiers || 1) + ' Tier(s)';
+    if (dietaryEl) dietaryEl.textContent = spec.dietaryPreferences || 'Standard';
+    if (weightEl) weightEl.textContent = (spec.weightKg ? spec.weightKg : 1.0) + ' kg';
+
+    if (lineTotalEl) lineTotalEl.textContent = '$' + total.toFixed(2);
+    if (subtotalEl) subtotalEl.textContent = '$' + total.toFixed(2);
+    if (feeEl) feeEl.textContent = '-$' + fee.toFixed(2);
+    if (netEl) netEl.textContent = '$' + net.toFixed(2);
+    if (totalEl) totalEl.textContent = '$' + total.toFixed(2);
+
+    if (extLinkEl) {
+        extLinkEl.href = order.paypalInvoiceUrl || 'https://sandbox.paypal.com/invoice/manage';
+    }
+
+    const modal = document.getElementById('invoice-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeInvoiceModal() {
+    const modal = document.getElementById('invoice-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function printInvoiceModal() {
+    window.print();
 }

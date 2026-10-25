@@ -14,11 +14,12 @@ class OrderStatus(str, Enum):
 
 class CakeSpecification(BaseModel):
     flavor: str
-    servings: int
-    tiers: int
+    weightKg: float = 1.0
+    servings: int = 10
+    tiers: int = 1
     theme: str
     dietaryPreferences: str = "Standard"
-    customMessage: str = "Happy Celebration!"
+    customMessage: str = ""
     pickupDate: date
     referenceImageUrl: Optional[str] = "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop"
     basePrice: float

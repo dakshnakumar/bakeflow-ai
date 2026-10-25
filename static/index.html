@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.4">
     <!-- AG Grid Community CSS & Themes (v33) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.0/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.0/styles/ag-theme-quartz.css">
@@ -117,17 +117,17 @@
                     <div class="chat-bubble incoming">
                         <div class="bubble-sender">Anna 👩‍🍳 (Baker & Owner)</div>
                         <div class="bubble-text">
-                            Hi there! 👋 I'm <strong>Anna</strong>, owner and head cake artist at Sweet Creations. Tell me about your celebration or send a photo of what you have in mind—flavor cravings, guest count, and your date—and let's plan something delicious together! 💕
+                            Hi there! 👋 I'm <strong>Anna</strong>, owner and head cake artist at Sweet Creations. Tell me about your celebration or send a photo of what you have in mind! Let me know your name, how many kg you'd like, when you need it, and if you'd like a custom message written on top 💕
                         </div>
                         <div class="chat-suggestions">
                             <button type="button" class="suggestion-chip" onclick="sendQuickReply('Hi Anna! Can I please see your cake catalogue and signature designs?')">
                                 📖 Browse Cake Catalogue
                             </button>
                             <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('unicorn')">
-                                🦄 Unicorn Cake (18 pax)
+                                🦄 Pastel Unicorn (2 kg)
                             </button>
                             <button type="button" class="suggestion-chip" onclick="loadPresetInquiryByKey('vintage')">
-                                🎂 Vintage Lambeth Heart
+                                🎂 Vintage Lambeth (1.5 kg)
                             </button>
                         </div>
                         <span class="bubble-time">Just now</span>
@@ -147,7 +147,7 @@
                             <button type="button" class="icon-tool-btn" title="Pick Vintage Cake Photo" onclick="selectPresetImage('vintage')">🎂</button>
                             <button type="button" class="icon-tool-btn" title="Pick Chocolate Cake Photo" onclick="selectPresetImage('chocolate')">🍫</button>
                         </div>
-                        <input type="text" id="chat-input" placeholder="Type cake requirements (e.g., 2-tier chocolate truffle for 15 guests this Saturday)..." onkeydown="handleChatKey(event)">
+                        <input type="text" id="chat-input" placeholder="Type cake details (e.g., Hi I'm Sarah, I need 1.5 kg chocolate cake for Oct 30th with 'Happy 25th Sarah')..." onkeydown="handleChatKey(event)">
                         <button type="button" id="send-btn" class="send-action-btn" onclick="sendInquiry()">
                             <span>Send</span>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/></svg>
@@ -189,6 +189,24 @@
                                 <span class="metric-value" id="paid-total-value">$184.00</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Hands-Free Kitchen Voice Control Bar -->
+                <div class="kitchen-voice-bar">
+                    <div class="voice-btn-group">
+                        <button type="button" class="voice-assistant-btn" id="voice-assistant-btn" onclick="toggleKitchenVoiceAssistant()">
+                            <span class="mic-icon" id="voice-mic-icon">🎙️</span>
+                            <span class="voice-btn-label" id="voice-btn-label">Tap to Speak</span>
+                            <span class="voice-pulse-ring" id="voice-pulse-ring" style="display: none;"></span>
+                        </button>
+                        <span class="voice-status-hint" id="voice-status-hint">Say: <em>"Jessica in oven"</em>, <em>"Jessica ready"</em>, or <em>"Jessica picked up"</em></span>
+                    </div>
+                    <div class="voice-quick-chips">
+                        <span class="chips-label">Voice Quick-Test:</span>
+                        <button type="button" class="voice-demo-chip" onclick="simulateVoiceCommand('Jessica in the oven')">🔥 "Jessica in oven"</button>
+                        <button type="button" class="voice-demo-chip" onclick="simulateVoiceCommand('Jessica ready for pickup')">📦 "Jessica ready"</button>
+                        <button type="button" class="voice-demo-chip" onclick="simulateVoiceCommand('Jessica picked up her cake')">✅ "Jessica picked up"</button>
                     </div>
                 </div>
 
@@ -273,9 +291,13 @@
                         </div>
                     </div>
                     <div class="finance-header-actions">
+                        <div class="auto-invoicing-badge active" id="auto-invoicing-badge" onclick="toggleAutoInvoicing()" title="Click to toggle automatic invoicing generation">
+                            <span class="auto-inv-dot"></span>
+                            <span class="auto-inv-text">⚡ Auto Invoicing: <strong id="auto-inv-status">ON</strong></span>
+                        </div>
                         <button type="button" class="export-csv-action-btn" onclick="exportFinanceCsv()">
                             <span class="export-icon">📥</span>
-                            <span>Export for Tax / Accountant (CSV)</span>
+                            <span>Export for Tax (CSV)</span>
                         </button>
                     </div>
                 </div>
@@ -510,6 +532,114 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js"></script>
+    <script src="app.js?v=2.4"></script>
+
+    <!-- ============================================================== -->
+    <!-- Official PayPal Digital Invoice & Itemized Receipt Modal       -->
+    <!-- ============================================================== -->
+    <div class="modal-backdrop" id="invoice-modal" style="display: none;">
+        <div class="modal-window invoice-modal-window">
+            <div class="modal-header invoice-modal-header">
+                <div class="paypal-invoice-brand">
+                    <span class="paypal-logo-blue">Pay</span><span class="paypal-logo-gold">Pal</span>
+                    <span class="invoice-title-pill">OFFICIAL DIGITAL INVOICE</span>
+                </div>
+                <div class="invoice-header-right">
+                    <button type="button" class="modal-print-btn" onclick="printInvoiceModal()" title="Print or Save PDF">🖨️ Print / Save PDF</button>
+                    <button type="button" class="modal-close-btn" onclick="closeInvoiceModal()">✕</button>
+                </div>
+            </div>
+            <div class="modal-body invoice-modal-body" id="invoice-printable-area">
+                <div class="invoice-doc">
+                    <!-- Top Info: Merchant + Invoice # & Dates -->
+                    <div class="invoice-top-row">
+                        <div class="invoice-merchant-info">
+                            <h3 class="inv-biz-name">Sweet Creations by Anna</h3>
+                            <p class="inv-biz-sub">Artisan Custom Bakery • Verified PayPal Business</p>
+                            <p class="inv-biz-loc">📍 San Jose, California • Orders via Direct DM & Autonomous AI</p>
+                        </div>
+                        <div class="invoice-meta-card">
+                            <div class="inv-status-pill paid" id="inv-modal-status">PAID ✅</div>
+                            <div class="inv-meta-line"><span>Invoice #:</span> <strong id="inv-modal-num">INV2-SBX-1027</strong></div>
+                            <div class="inv-meta-line"><span>Order ID:</span> <strong id="inv-modal-order-id">#BK-1027</strong></div>
+                            <div class="inv-meta-line"><span>Invoice Date:</span> <span id="inv-modal-date">Oct 25, 2026</span></div>
+                            <div class="inv-meta-line"><span>Pickup Date:</span> <strong id="inv-modal-pickup">Oct 30, 2026</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Billed To Section -->
+                    <div class="invoice-party-row">
+                        <div class="inv-party-box">
+                            <span class="inv-party-label">BILLED TO (CUSTOMER):</span>
+                            <h4 id="inv-modal-customer">Emma Watson</h4>
+                            <p id="inv-modal-phone">+1 (408) 555-0199</p>
+                            <p class="inv-party-channel">Order Channel: WhatsApp Direct Order Simulator</p>
+                        </div>
+                        <div class="inv-party-box right">
+                            <span class="inv-party-label">PAYPAL SETTLEMENT AUDIT:</span>
+                            <div class="inv-settlement-info">
+                                <span class="inv-pp-tag"><span class="pp-p-tiny">P</span> PayPal Sandbox Verified</span>
+                                <p class="inv-cap-id">Transaction / Capture ID: <code id="inv-modal-capture">PAY-SBX-1027</code></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Itemized Cake Specification Table -->
+                    <div class="invoice-table-wrap">
+                        <table class="invoice-items-table">
+                            <thead>
+                                <tr>
+                                    <th>Description / Itemized Specs</th>
+                                    <th>Configuration</th>
+                                    <th>Weight (KG)</th>
+                                    <th class="text-right">Total Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <strong id="inv-modal-theme">Vintage Lambeth Heart Cake</strong>
+                                        <div class="inv-item-detail" id="inv-modal-flavor">Flavor: Madagascar Vanilla Bean</div>
+                                        <div class="inv-item-msg" id="inv-modal-msg">✍️ Inscription: "Forever 21"</div>
+                                    </td>
+                                    <td>
+                                        <span id="inv-modal-tiers">1 Tier</span> • <span id="inv-modal-dietary">Standard</span>
+                                    </td>
+                                    <td id="inv-modal-weight">1.5 kg</td>
+                                    <td class="text-right font-mono" id="inv-modal-line-total">$67.50</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Invoice Totals & Fee Breakdown -->
+                    <div class="invoice-totals-row">
+                        <div class="invoice-notes-block">
+                            <h5>Baker Notes & Terms:</h5>
+                            <p>Handcrafted fresh with organic artisan ingredients. Please refrigerate at 4°C until 1 hour prior to celebration. Thank you for choosing Sweet Creations!</p>
+                        </div>
+                        <div class="invoice-summary-card">
+                            <div class="inv-sum-line"><span>Gross Amount:</span> <strong id="inv-modal-subtotal">$67.50</strong></div>
+                            <div class="inv-sum-line pp-fee"><span>PayPal Fee (2.99% + $0.49):</span> <span id="inv-modal-fee">-$2.51</span></div>
+                            <div class="inv-sum-line net"><span>Net Baker Payout:</span> <strong id="inv-modal-net">$64.99</strong></div>
+                            <div class="inv-sum-line total"><span>TOTAL SETTLED:</span> <strong id="inv-modal-total">$67.50</strong></div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="invoice-footer">
+                        <span>Powered by BakeFlow AI &bull; Official PayPal Developer Sandbox Invoicing v2 &bull; San Jose, CA</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer invoice-modal-footer">
+                <a href="https://sandbox.paypal.com/invoice/manage" target="_blank" class="invoice-ext-link-btn" id="inv-modal-ext-link">
+                    🌐 Open on PayPal Merchant Dashboard ↗
+                </a>
+                <button type="button" class="invoice-done-btn" onclick="closeInvoiceModal()">Close Invoice</button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

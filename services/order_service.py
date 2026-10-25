@@ -1,3 +1,17 @@
+import random
+
+SAMPLE_CUSTOMERS = [
+    ("Sarah Jenkins", "+1 (415) 555-0142"),
+    ("David Miller", "+1 (206) 555-0188"),
+    ("Emma Watson", "+1 (312) 555-0194"),
+    ("Chloe Bennett", "+1 (617) 555-0123"),
+    ("Lucas Vance", "+1 (512) 555-0177"),
+    ("Liam Davis", "+1 (408) 555-0156"),
+    ("Sophia Martinez", "+1 (305) 555-0167"),
+    ("Olivia Parker", "+1 (212) 555-0131"),
+    ("Noah Walker", "+1 (702) 555-0182"),
+    ("Mia Thompson", "+1 (602) 555-0199"),
+]
 import os
 import sys
 import asyncio
@@ -119,16 +133,23 @@ class OrderService:
         self.orders[o2.id] = o2
 
     async def process_inquiry(self, req: InquiryRequest) -> QuoteResponse:
-        customer_name = req.customerName or "Jessica Taylor"
+        customer_name = req.customerName
         customer_phone = req.customerPhone or "+1-555-0199"
 
         # 1. Invoke AI Router with Merchant Persona (Anna), Payment Readiness & Catalogue check
-        spec, agent_msg, ready_for_payment, show_catalogue = await self.ai_service.parse_inquiry_with_ai(
+        spec, agent_msg, ready_for_payment, show_catalogue, buyer_name = await self.ai_service.parse_inquiry_with_ai(
             text=req.message,
             image_url=req.imageUrl,
             history=req.history,
-            customer_name=customer_name
+            customer_name=customer_name or "there"
         )
+
+        if buyer_name and len(buyer_name.strip()) > 1:
+            customer_name = buyer_name.strip()
+        elif not customer_name or customer_name in ["Jessica Taylor", "Jessica", "Customer"]:
+            rand_name, rand_phone = random.choice(SAMPLE_CUSTOMERS)
+            customer_name = rand_name
+            customer_phone = rand_phone
 
         catalogue_items = None
         if show_catalogue:
@@ -220,6 +241,7 @@ class OrderService:
         return None
 
     def get_all_orders(self) -> List[Order]:
+        self._load_orders()
         return list(self.orders.values())
 
     def get_order(self, order_id: str) -> Optional[Order]:

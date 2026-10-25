@@ -49,7 +49,7 @@ class BakeryAiService:
         image_url: Optional[str] = None,
         history: Optional[list] = None,
         customer_name: Optional[str] = "Jessica"
-    ) -> Tuple[CakeSpecification, str, bool, bool]:
+    ) -> Tuple[CakeSpecification, str, bool, bool, Optional[str]]:
         """
         Unified AI Router supporting Google Gemini and Anthropic Claude 3.5 Sonnet.
         Functions as Anna (Artisan Home Baker Merchant) - friendly, culinary-minded dialogue.
@@ -60,16 +60,16 @@ class BakeryAiService:
         logger.info(f"AI Router selected engine: {active_engine.upper()}")
 
         if active_engine == "gemini":
-            spec, msg, ready, show_cat = await self._call_gemini(text, image_url, history, customer_name)
+            spec, msg, ready, show_cat, buyer = await self._call_gemini(text, image_url, history, customer_name)
             if spec:
-                return spec, msg, ready, show_cat
+                return spec, msg, ready, show_cat, buyer
             logger.warning("Gemini call failed, checking Claude fallback...")
             active_engine = "claude"
 
         if active_engine == "claude":
-            spec, msg, ready, show_cat = await self._call_claude(text, image_url, history, customer_name)
+            spec, msg, ready, show_cat, buyer = await self._call_claude(text, image_url, history, customer_name)
             if spec:
-                return spec, msg, ready, show_cat
+                return spec, msg, ready, show_cat, buyer
             logger.warning("Claude call failed, falling back to heuristic engine...")
 
         # Ultimate resilient merchant fallback
@@ -77,7 +77,7 @@ class BakeryAiService:
         return self._heuristic_merchant_response(text, image_url, history, customer_name)
 
     # Compatibility alias
-    async def parse_inquiry_with_claude(self, text: str, image_url: Optional[str] = None) -> Tuple[CakeSpecification, str, bool, bool]:
+    async def parse_inquiry_with_claude(self, text: str, image_url: Optional[str] = None) -> Tuple[CakeSpecification, str, bool, bool, Optional[str]]:
         return await self.parse_inquiry_with_ai(text, image_url)
 
     def _determine_engine(self) -> str:
@@ -106,9 +106,9 @@ class BakeryAiService:
         image_url: Optional[str],
         history: Optional[list],
         customer_name: Optional[str]
-    ) -> Tuple[Optional[CakeSpecification], Optional[str], Optional[bool], Optional[bool]]:
+    ) -> Tuple[Optional[CakeSpecification], Optional[str], Optional[bool], Optional[bool], Optional[str]]:
         if not self._is_valid_key(self.gemini_api_key):
-            return None, None, None, None
+            return None, None, None, None, None
 
         try:
             logger.info("Invoking Google Gemini Merchant AI Agent...")
@@ -140,21 +140,23 @@ class BakeryAiService:
                     "response_schema": {
                         "type": "OBJECT",
                         "properties": {
+                            "buyerName": {"type": "STRING", "description": "The buyer's real name if introduced (e.g. Sarah, Emma, David). If not mentioned, return empty string."},
                             "flavor": {"type": "STRING"},
-                            "servings": {"type": "INTEGER"},
+                            "weightKg": {"type": "NUMBER", "description": "Weight in Kilograms (e.g. 1.0, 1.5, 2.0). Standard base is 1.0 kg."},
+                            "servings": {"type": "INTEGER", "description": "Estimated portions (approx 10 portions per 1 kg)"},
                             "tiers": {"type": "INTEGER"},
                             "theme": {"type": "STRING"},
                             "dietaryPreferences": {"type": "STRING"},
-                            "customMessage": {"type": "STRING"},
+                            "customMessage": {"type": "STRING", "description": "Custom message or inscription to pipe on the cake. Empty string if not requested yet."},
                             "pickupDate": {"type": "STRING", "description": "Date in YYYY-MM-DD format"},
                             "basePrice": {"type": "NUMBER"},
                             "addOnsPrice": {"type": "NUMBER"},
                             "totalPrice": {"type": "NUMBER"},
-                            "readyForPayment": {"type": "BOOLEAN", "description": "True ONLY if customer explicitly confirms they are ready to pay or asks to send the PayPal/payment link. False during initial questions, design discussions, and quoting."},
-                            "showCatalogue": {"type": "BOOLEAN", "description": "True if customer asks to see the menu, catalogue, cake options, signature flavors, or browses designs."},
-                            "agentMessage": {"type": "STRING", "description": "Warm personal response from Anna the baker. Speak naturally as a human merchant texting over WhatsApp/Instagram DM. No robotic bullet points. If readyForPayment is false, discuss design/quote and ask if they want the PayPal link. If true, express excitement and confirm the PayPal link is provided."}
+                            "readyForPayment": {"type": "BOOLEAN", "description": "True ONLY if all 4 details (buyer name, weight in kg, date, message) are settled AND customer explicitly says yes/book/pay/send link."},
+                            "showCatalogue": {"type": "BOOLEAN", "description": "True if customer asks to see the menu, catalogue, or cake options."},
+                            "agentMessage": {"type": "STRING", "description": "Warm personal response from Anna the baker. Always talk in KG (never servings). If buyer name, weight in kg, pickup date, or custom writing are missing, ask for them naturally like a friendly WhatsApp baker."}
                         },
-                        "required": ["flavor", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "readyForPayment", "showCatalogue", "agentMessage"]
+                        "required": ["flavor", "weightKg", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "readyForPayment", "showCatalogue", "agentMessage"]
                     }
                 }
             }
@@ -174,7 +176,7 @@ class BakeryAiService:
 
         except Exception as e:
             logger.error(f"Gemini API exception: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
     # =========================================================================
     # 2. ANTHROPIC CLAUDE 3.5 SONNET - MERCHANT PERSONA
@@ -185,9 +187,9 @@ class BakeryAiService:
         image_url: Optional[str],
         history: Optional[list],
         customer_name: Optional[str]
-    ) -> Tuple[Optional[CakeSpecification], Optional[str], Optional[bool], Optional[bool]]:
+    ) -> Tuple[Optional[CakeSpecification], Optional[str], Optional[bool], Optional[bool], Optional[str]]:
         if not self.claude_client:
-            return None, None, None, None
+            return None, None, None, None, None
 
         try:
             logger.info("Invoking Claude 3.5 Sonnet Merchant Reasoning Agent...")
@@ -229,36 +231,34 @@ class BakeryAiService:
 
         except Exception as e:
             logger.error(f"Claude API exception: {e}")
-        return None, None, None, None
+        return None, None, None, None, None
 
     # =========================================================================
     # 3. COMMON HELPERS & MERCHANT PERSONA INSTRUCTIONS
     # =========================================================================
     def _build_system_instruction(self) -> str:
         return (
-            f"You are Anna, the passionate owner, master decorator, and head artisan baker at {self.business_name}, "
+            f"You are Anna, the passionate master decorator and head artisan baker at {self.business_name}, "
             "a boutique home bakery in San Jose, CA.\n"
             "You are chatting directly with clients over WhatsApp / Instagram DM.\n\n"
             "MERCHANT PERSONA & VOICE:\n"
-            "- Speak naturally as a warm, enthusiastic human baker in the 1st person ('I', 'my kitchen', 'I'd love to bake this for you!').\n"
-            "- DO NOT sound like an AI chatbot, corporate helpdesk, or customer support robot.\n"
-            "- DO NOT output bulleted checklists or receipt outlines (e.g. avoid '• Flavor: ... • Size: ...').\n"
-            "- Talk like a real baker texting a client: compliment their cake theme, share your excitement, recommend flavors, and discuss portions.\n"
+            "- Speak naturally as a warm, enthusiastic human baker in the 1st person ('I', 'my kitchen', 'I would love to bake this for you!').\n"
+            "- DO NOT sound like an AI chatbot, corporate helpdesk, or support bot. No robotic checklists.\n"
             "- Use friendly emojis naturally (💕, 👩‍🍳, 🎂, ✨, 🧁).\n\n"
-            "PAYPAL PAYMENT READINESS & CATALOGUE LOGIC:\n"
-            "1. INQUIRY / CONSULTATION PHASE (readyForPayment = false, showCatalogue = false):\n"
-            "   - If the customer is inquiring, asking questions, requesting a quote, exploring flavors, or asking about availability:\n"
-            "   - Answer warmly, give the total price estimate, and ask: 'Would you like me to reserve your oven slot and send over the PayPal link?'\n"
-            "   - readyForPayment MUST be false.\n"
-            "   - Do NOT say 'click the link below' because no link is presented yet.\n"
-            "2. CATALOGUE / MENU BROWSE (showCatalogue = true, readyForPayment = false):\n"
-            "   - If the customer asks to see your menu, catalogue, cake options, what designs you have, or wants inspiration:\n"
-            "   - Set showCatalogue = true and readyForPayment = false.\n"
-            "   - Warmly introduce your signature artisan cakes and invite them to tap any cake to customize it.\n"
-            "3. PAYMENT PHASE (readyForPayment = true):\n"
-            "   - ONLY when the customer explicitly confirms they want to proceed, says yes to the payment link, says 'let's do it', 'ready to pay', 'send me the link', or asks how to pay:\n"
-            "   - Set readyForPayment = true.\n"
-            "   - Confirm that their pickup date is reserved and let them know the secure PayPal payment link is attached below to finalize the deposit and lock it in."
+            "4 ESSENTIAL ORDER DETAILS YOU MUST COLLECT:\n"
+            "1. BUYER NAME: If you do not know their name, warmly ask who you are chatting with ('Who am I baking this for? May I have your name?').\n"
+            "2. WEIGHT IN KG (NEVER SAY SERVINGS!): Always talk and quote in Kilograms (e.g. 'How many kg cake would you like? 1 kg serves ~8-10 people, 1.5 kg, or 2 kg+?'). Base pricing is $45.00/kg.\n"
+            "3. PICKUP DATE: Ask what date they need the cake ('When is your celebration? What date do you need to pick it up?').\n"
+            "4. CUSTOM MESSAGE: Ask what message or inscription to write on the cake ('Would you like any special message piped on the cake, like Happy Birthday or a name?').\n\n"
+            "CONVERSATION PHASES:\n"
+            "1. CONSULTATION (readyForPayment = false):\n"
+            "   - If any of the 4 details (buyer name, weight in kg, pickup date, or custom writing) are still missing, compliment their cake idea and warmly ask for the missing details.\n"
+            "   - readyForPayment MUST be false until all key details are agreed.\n"
+            "2. CATALOGUE BROWSE (showCatalogue = true, readyForPayment = false):\n"
+            "   - If they ask for your menu or cake catalogue, show it and ask which design they like.\n"
+            "3. PAYMENT (readyForPayment = true):\n"
+            "   - ONLY when the cake details are settled AND the customer confirms they want to proceed, says yes, 'book it', 'let us do it', 'ready to pay', or asks for the link.\n"
+            "   - Let them know the secure PayPal link is attached below to finalize the booking."
         )
 
     def _build_prompt(self, text: str, history: Optional[list] = None, customer_name: Optional[str] = "Customer") -> str:
@@ -293,21 +293,23 @@ class BakeryAiService:
         return {
             "type": "object",
             "properties": {
+                "buyerName": {"type": "string", "description": "Buyer name if introduced, otherwise empty string."},
                 "flavor": {"type": "string"},
+                "weightKg": {"type": "number", "description": "Weight in Kilograms (e.g. 1.0, 1.5, 2.0). Standard base is 1.0 kg."},
                 "servings": {"type": "integer"},
                 "tiers": {"type": "integer"},
                 "theme": {"type": "string"},
                 "dietaryPreferences": {"type": "string"},
-                "customMessage": {"type": "string"},
+                "customMessage": {"type": "string", "description": "Message or text to pipe on cake."},
                 "pickupDate": {"type": "string", "description": "YYYY-MM-DD"},
                 "basePrice": {"type": "number"},
                 "addOnsPrice": {"type": "number"},
                 "totalPrice": {"type": "number"},
-                "readyForPayment": {"type": "boolean", "description": "True ONLY if customer confirmed they are ready to pay or requested payment link."},
-                "showCatalogue": {"type": "boolean", "description": "True if customer asks to see the menu, catalogue, cake options, or designs."},
+                "readyForPayment": {"type": "boolean"},
+                "showCatalogue": {"type": "boolean"},
                 "agentMessage": {"type": "string"}
             },
-            "required": ["flavor", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "readyForPayment", "showCatalogue", "agentMessage"]
+            "required": ["flavor", "weightKg", "servings", "tiers", "theme", "dietaryPreferences", "pickupDate", "basePrice", "addOnsPrice", "totalPrice", "readyForPayment", "showCatalogue", "agentMessage"]
         }
 
     async def _fetch_image_base64(self, image_url: str) -> Tuple[Optional[str], str]:
@@ -324,7 +326,7 @@ class BakeryAiService:
             logger.warning(f"Failed to fetch image bytes: {e}")
         return None, "image/jpeg"
 
-    def _map_dict_to_spec(self, d: Dict[str, Any], image_url: Optional[str]) -> Tuple[CakeSpecification, str, bool, bool]:
+    def _map_dict_to_spec(self, d: Dict[str, Any], image_url: Optional[str]) -> Tuple[CakeSpecification, str, bool, bool, Optional[str]]:
         raw_date = str(d.get("pickupDate", ""))
         p_date = None
         try:
@@ -339,13 +341,18 @@ class BakeryAiService:
         ready_for_payment = bool(d.get("readyForPayment", False))
         show_catalogue = bool(d.get("showCatalogue", False))
 
+        weight_kg = float(d.get("weightKg", 1.0))
+        servings = int(d.get("servings", int(round(weight_kg * 10))))
+        buyer_name = str(d.get("buyerName", "")).strip() or None
+
         spec = CakeSpecification(
             flavor=d.get("flavor", "Signature Vanilla Bean"),
-            servings=int(d.get("servings", 15)),
+            weightKg=weight_kg,
+            servings=servings,
             tiers=int(d.get("tiers", 1)),
             theme=d.get("theme", "Artisan Custom Handcrafted Design"),
             dietaryPreferences=d.get("dietaryPreferences", "Standard"),
-            customMessage=d.get("customMessage", "Happy Celebration!"),
+            customMessage=d.get("customMessage", ""),
             pickupDate=p_date,
             referenceImageUrl=image_url or "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop",
             basePrice=base_p,
@@ -355,12 +362,12 @@ class BakeryAiService:
         agent_msg = d.get("agentMessage")
         if not agent_msg:
             if ready_for_payment:
-                agent_msg = self.generate_merchant_payment_message(spec)
+                agent_msg = self.generate_merchant_payment_message(spec, buyer_name or "there")
             elif show_catalogue:
-                agent_msg = self.generate_merchant_catalogue_message()
+                agent_msg = self.generate_merchant_catalogue_message(buyer_name or "there")
             else:
-                agent_msg = self.generate_merchant_consultation_message(spec)
-        return spec, agent_msg, ready_for_payment, show_catalogue
+                agent_msg = self.generate_merchant_consultation_message(spec, buyer_name or "there")
+        return spec, agent_msg, ready_for_payment, show_catalogue, buyer_name
 
     def _heuristic_parse(self, text: str, image_url: str = None) -> CakeSpecification:
         lower = text.lower() if text else ""
@@ -404,7 +411,7 @@ class BakeryAiService:
         image_url: Optional[str] = None,
         history: Optional[list] = None,
         customer_name: Optional[str] = "Jessica"
-    ) -> Tuple[CakeSpecification, str, bool, bool]:
+    ) -> Tuple[CakeSpecification, str, bool, bool, Optional[str]]:
         # Gather cumulative text from history if present so context is preserved across turns
         combined_text = text
         if history:
@@ -422,14 +429,15 @@ class BakeryAiService:
         ready_for_payment = self._is_ready_for_payment(text, history)
         show_catalogue = self._is_catalogue_request(text)
 
+        buyer_name = self._extract_buyer_name(combined_text) or customer_name
         if ready_for_payment:
-            msg = self.generate_merchant_payment_message(spec, customer_name)
+            msg = self.generate_merchant_payment_message(spec, buyer_name)
         elif show_catalogue:
-            msg = self.generate_merchant_catalogue_message(customer_name)
+            msg = self.generate_merchant_catalogue_message(buyer_name)
         else:
-            msg = self.generate_merchant_consultation_message(spec, customer_name)
+            msg = self.generate_merchant_consultation_message(spec, buyer_name)
 
-        return spec, msg, ready_for_payment, show_catalogue
+        return spec, msg, ready_for_payment, show_catalogue, buyer_name
 
     def _is_catalogue_request(self, text: str) -> bool:
         lower = text.lower().strip()
@@ -548,3 +556,116 @@ class BakeryAiService:
     def _extract_custom_message(self, text: str) -> str:
         match = re.search(r'[\'"]([^\'"]+)[\'"]', text)
         return match.group(1) if match else "Happy Celebration!"
+
+    async def parse_voice_command(self, transcript: str, active_orders: list) -> Dict[str, Any]:
+        """
+        Parses hands-free spoken kitchen voice instructions like:
+        - "Sarah's cake is in the oven"
+        - "Mark order 1018 as ready for pickup"
+        - "Just boxed the vintage heart cake"
+        Returns: {"success": bool, "orderId": "BK-...", "newStatus": str, "spokenFeedback": str}
+        """
+        transcript_clean = transcript.strip().lower()
+        
+        # 1. Determine target status (Check COMPLETED first, then READY_FOR_PICKUP, then BAKING)
+        target_status = None
+        if any(w in transcript_clean for w in [
+            "picked up", "pickedup", "picked", "collected", "collect", "delivered",
+            "completed", "complete", "handed over", "customer took", "finished order"
+        ]):
+            target_status = "COMPLETED"
+        elif any(w in transcript_clean for w in [
+            "ready", "box", "boxed", "boxing", "ready for pickup", "ready for pick up", "pickup", "pick up", "decorating done"
+        ]):
+            target_status = "READY_FOR_PICKUP"
+        elif any(w in transcript_clean for w in [
+            "oven", "bake", "baking", "started baking", "started", "in the oven", "in oven"
+        ]):
+            target_status = "BAKING"
+        else:
+            target_status = "BAKING"
+
+        # 2. Match Target Order
+        target_order = None
+        
+        # Check for explicit order number like "BK-1026", "BK 1026", "order 1026", "1026"
+        num_match = re.search(r"(?:bk[- ]?|order\s*|ticket\s*)?(\d{3,4})", transcript_clean)
+        if num_match:
+            explicit_id = f"BK-{num_match.group(1)}"
+            for o in active_orders:
+                if o.id.lower() == explicit_id.lower():
+                    target_order = o
+                    break
+            if not target_order:
+                return {
+                    "success": False,
+                    "spokenFeedback": f"I heard order #{explicit_id}, but could not find that active ticket on the kitchen board."
+                }
+
+        if not target_order:
+            for o in active_orders:
+                c_name = o.customerName.lower()
+                first_name = c_name.split()[0]
+                if first_name in transcript_clean or c_name in transcript_clean:
+                    target_order = o
+                    break
+
+        if not target_order:
+            for o in active_orders:
+                flavor = (o.cakeSpec.flavor if o.cakeSpec else "").lower()
+                theme = (o.cakeSpec.theme if o.cakeSpec else "").lower()
+                if (theme and any(word in transcript_clean for word in theme.split() if len(word) > 3)) or \
+                   (flavor and any(word in transcript_clean for word in flavor.split() if len(word) > 3)):
+                    target_order = o
+                    break
+
+        if not target_order and len(active_orders) == 1:
+            target_order = active_orders[0]
+        elif not target_order and len(active_orders) > 1:
+            return {
+                "success": False,
+                "spokenFeedback": "I heard your update, but there are multiple active tickets. Please say the customer name or order number."
+            }
+
+        if not target_order:
+            return {
+                "success": False,
+                "spokenFeedback": "I heard you, but I could not find an active kitchen ticket matching that description."
+            }
+
+        customer_first = target_order.customerName.split()[0]
+        status_readable = {
+            "BAKING": "marked as in the oven",
+            "READY_FOR_PICKUP": "boxed and ready for pickup",
+            "COMPLETED": "marked as picked up and completed"
+        }.get(target_status, "updated")
+
+        spoken_msg = f"Got it! {customer_first}'s cake #{target_order.id} is now {status_readable}."
+
+        return {
+            "success": True,
+            "orderId": target_order.id,
+            "newStatus": target_status,
+            "spokenFeedback": spoken_msg
+        }
+
+    def _extract_kg(self, text: str) -> float:
+        match = re.search(r'(\d+(?:\.\d+)?)\s*(?:kg|kilos?|kilograms?)', text.lower())
+        if match:
+            return float(match.group(1))
+        s_match = re.search(r'(\d+)\s*(?:servings?|people|guests|pax)', text.lower())
+        if s_match:
+            return round(int(s_match.group(1)) / 10.0, 1)
+        return 1.0
+
+    def _extract_buyer_name(self, text: str) -> Optional[str]:
+        patterns = [
+            r"(?:my name is|i am|i'm|this is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
+            r'(?:call me)\s+([A-Z][a-z]+)',
+            r'(?:name:\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+        ]
+        for p in patterns:
+            m = re.search(p, text, re.IGNORECASE)
+            if m:
+                return m.group(1).strip().title()
+        return None
