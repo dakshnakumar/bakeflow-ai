@@ -713,9 +713,7 @@ function upsertTicket(order, flash) {
 function renderCardActions(order) {
     if (order.status === 'PAYMENT_PENDING' || order.status === 'QUOTED') {
         return `
-            <button class="action-btn pay-simulate-btn" onclick="openPayPalCheckout('${order.id}', ${order.totalAmount}, '${escapeHtml(order.cakeSpec.theme)}', '${order.paypalOrderId || ''}', '${order.paypalApprovalUrl || ''}')">
-                💳 Pay (Sandbox)
-            </button>
+            <span class="awaiting-pay-pill">⏳ Awaiting Customer Payment</span>
         `;
     } else if (order.status === 'CONFIRMED') {
         return `
@@ -1337,3 +1335,14 @@ function exportFinanceCsv() {
     }
 }
 
+
+async function clearPendingOrders() {
+    try {
+        const res = await fetch('/api/orders/pending', { method: 'DELETE' });
+        if (res.ok) {
+            await loadAllOrders();
+        }
+    } catch (e) {
+        console.error("Failed to clear pending orders:", e);
+    }
+}

@@ -241,3 +241,17 @@ class OrderService:
         }
         for q in self.subscribers:
             await q.put(payload)
+
+    def clear_pending_orders(self) -> int:
+        to_delete = [oid for oid, o in self.orders.items() if o.status in [OrderStatus.PAYMENT_PENDING, OrderStatus.QUOTED]]
+        for oid in to_delete:
+            del self.orders[oid]
+        self._save_orders()
+        return len(to_delete)
+
+    def delete_order(self, order_id: str) -> bool:
+        if order_id in self.orders:
+            del self.orders[order_id]
+            self._save_orders()
+            return True
+        return False

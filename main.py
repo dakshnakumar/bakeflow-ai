@@ -61,6 +61,18 @@ async def submit_inquiry(request: InquiryRequest):
 async def get_all_orders():
     return order_service.get_all_orders()
 
+@app.delete("/api/orders/pending")
+async def clear_pending_orders():
+    count = order_service.clear_pending_orders()
+    return {"status": "SUCCESS", "clearedCount": count}
+
+@app.delete("/api/orders/{order_id}")
+async def delete_order(order_id: str):
+    success = order_service.delete_order(order_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"status": "SUCCESS", "deletedOrderId": order_id}
+
 @app.get("/api/orders/{order_id}", response_model=Order)
 async def get_order(order_id: str):
     order = order_service.get_order(order_id)

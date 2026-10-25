@@ -202,7 +202,10 @@
                                     <span class="col-indicator pending"></span>
                                     <h3>Payment Pending</h3>
                                 </div>
-                                <span class="ticket-counter" id="count-pending">0</span>
+                                <div class="col-header-actions" style="display: flex; align-items: center; gap: 6px;">
+                                    <span class="ticket-counter" id="count-pending">0</span>
+                                    <button type="button" class="clear-col-btn" onclick="clearPendingOrders()" title="Clear uncompleted pending quotes" style="background: transparent; border: none; cursor: pointer; font-size: 11px; opacity: 0.6; padding: 2px;">🗑️</button>
+                                </div>
                             </div>
                             <div class="tickets-container" id="tickets-pending"></div>
                         </div>
