@@ -372,6 +372,19 @@
 
                 <!-- Tab 1: Official PayPal Smart Payment Buttons -->
                 <div id="tab-content-paypal" class="tab-pane active">
+                    <div class="paypal-instant-pay-banner">
+                        <button type="button" class="paypal-instant-settle-btn" onclick="executeRealPayment()">
+                            <span class="pp-icon-large">P</span>
+                            <div class="btn-text-group">
+                                <span class="btn-main-title">Pay with PayPal Sandbox (Instant)</span>
+                                <span class="btn-sub-title">1-Click Live Settlement via PayPal REST API</span>
+                            </div>
+                            <span class="instant-flash-badge">⚡ INSTANT</span>
+                        </button>
+                        <div class="or-divider">
+                            <span>OR USE PAYPAL SMART BUTTONS</span>
+                        </div>
+                    </div>
                     <div id="paypal-smart-button-container"></div>
                 </div>
 
